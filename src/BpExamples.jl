@@ -1,6 +1,6 @@
 module BpExamples
 
-include("Pong/pong.jl")
+include("Pong.jl")
 export Pong
 
 end # module

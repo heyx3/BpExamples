@@ -4,13 +4,13 @@ module Pong
 using Random  # For RNG stuf
 
 # External dependencies:
-using GLFW, # The underlying window/input library B+ uses 
-      Setfield # Helper macros to "modify" immutable data, by copying it ("@set!")
+using GLFW, # The underlying window/input library used by B+
+      Setfield # Helper macros ('@set!') to "modify" immutable data by copying it
 
-# B+
+# B+:
 using Bplus,
       Bplus.Utilities, Bplus.Math,
-      Bplus.GL, # OpenGL wrapper
+      Bplus.GL,
       Bplus.Input, Bplus.Helpers
 
 
@@ -47,49 +47,51 @@ function run_game(context::Bplus.GL.Context)
     # Define the ball and bat shaders.
     # Both are rendered with the standard quad from the "Resources" service.
     shader_bat::Bplus.GL.Program = bp_glsl"""
-#START_VERTEX
-    //Vertex shader:
-    uniform vec2 u_boundsMin, u_boundsMax;
-    in vec2 vIn_pos;
-    void main() {
-        vec2 uv = (vIn_pos * 0.5) + 0.5;
-        gl_Position = vec4(mix(u_boundsMin, u_boundsMax, uv),
-                           0.5, 1.0);
-    }
-#START_FRAGMENT
-    //Fragment shader:
-    uniform vec4 u_color;
-    out vec4 fOut_color;
-    void main() {
-        fOut_color = u_color;
-    }
-"""
-    shader_ball::Bplus.GL.Program = bp_glsl"""
-#START_VERTEX
-    //Vertex shader:
-    uniform vec2 u_boundsMin, u_boundsMax;
-    in vec2 vIn_pos;
-    out vec2 vOut_uv;
-    void main() {
-        vOut_uv = (vIn_pos * 0.5) + 0.5;
-        gl_Position = vec4(mix(u_boundsMin, u_boundsMax, vOut_uv),
-                           0.5, 1.0);
-    }
-#START_FRAGMENT
-    //Fragment shader:
-    in vec2 vOut_uv;
-    uniform vec4 u_color;
-    out vec4 fOut_color;
-    void main() {
-        fOut_color = u_color;
+        #START_VERTEX
+        //Vertex shader:
+        uniform vec2 u_boundsMin, u_boundsMax;
+        in vec2 vIn_pos;
+        void main() {
+            vec2 uv = (vIn_pos * 0.5) + 0.5;
+            gl_Position = vec4(mix(u_boundsMin, u_boundsMax, uv),
+                            0.5, 1.0);
+        }
 
-        //The ball is a circle, inscribing the quad mesh that renders it.
-        //Therefore its radius is 0.5 in UV space.
-        //Discard pixels outside this circle.
-        if (distance(vOut_uv, (0.5).xx) > 0.5)
-            discard;
-    }
-"""
+        #START_FRAGMENT
+        //Fragment shader:
+        uniform vec4 u_color;
+        out vec4 fOut_color;
+        void main() {
+            fOut_color = u_color;
+        }
+    """
+    shader_ball::Bplus.GL.Program = bp_glsl"""
+        #START_VERTEX
+        //Vertex shader:
+        uniform vec2 u_boundsMin, u_boundsMax;
+        in vec2 vIn_pos;
+        out vec2 vOut_uv;
+        void main() {
+            vOut_uv = (vIn_pos * 0.5) + 0.5;
+            gl_Position = vec4(mix(u_boundsMin, u_boundsMax, vOut_uv),
+                            0.5, 1.0);
+        }
+
+        #START_FRAGMENT
+        //Fragment shader:
+        in vec2 vOut_uv;
+        uniform vec4 u_color;
+        out vec4 fOut_color;
+        void main() {
+            fOut_color = u_color;
+
+            //The ball is a circle, inscribing the quad mesh that renders it.
+            //Therefore its radius is 0.5 in UV space.
+            //Discard pixels outside this circle.
+            if (distance(vOut_uv, (0.5).xx) > 0.5)
+                discard;
+        }
+    """
 
     # Set up frame timing.
     last_time_ns = time_ns()
