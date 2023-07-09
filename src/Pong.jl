@@ -42,7 +42,7 @@ function run_game(context::Bplus.GL.Context)
     #    don't have to explicitly refer to these services after starting them.
     # For example, when configuring inputs, we do not reference 'service_input'.
     service_input::InputService = service_input_init(context)
-    service_resources::CResources = get_resources()
+    service_resources::BasicGraphicsService = get_basic_graphics()
 
     # Define the ball and bat shaders.
     # Both are rendered with the standard quad from the "Resources" service.
