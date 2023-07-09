@@ -23,8 +23,8 @@ const BALL_RADIUS = Float32(22)
 # Set gameplay constants:
 const BAT_SPEED_PIXELS_PER_SECOND = 900
 const BALL_INITIAL_SPEED_PIXELS_PER_SECOND = 500
-const BALL_SPEEDUP_PER_HIT = Float32(1.5) # Can also write "1.1f0" for Float32
-                                          # B+ offers another short-hand: "@f32(1.1)"
+const BALL_SPEEDUP_PER_HIT = Float32(1.2) # Can also write "1.2f0" for Float32
+                                          # B+ offers another short-hand: "@f32(1.2)"
 
 # Set render/window settings:
 const FPS_CAP = 1/240 # A dumb but simple way to prevent the game from burning CPU cycles
@@ -270,15 +270,16 @@ end
 
 function main()
     # Run the game within a GL context/window.
-    bp_gl_context(run_game,
-                  LEVEL_SIZE_PIXELS, "Pong",
-                  vsync=VSYNC,
-                  glfw_hints = Dict{Int32, Int32}(
-                      Int32(GLFW.DEPTH_BITS) => Int32(GLFW.DONT_CARE),
-                      Int32(GLFW.STENCIL_BITS) => Int32(GLFW.DONT_CARE),
-                      Int32(GLFW.RESIZABLE) => Int32(0)
-                  )
-                 )
+    bp_gl_context(
+        run_game,
+        LEVEL_SIZE_PIXELS, "Pong",
+        vsync=VSYNC,
+        glfw_hints = Dict{Int32, Int32}(
+            Int32(GLFW.DEPTH_BITS) => Int32(GLFW.DONT_CARE),
+            Int32(GLFW.STENCIL_BITS) => Int32(GLFW.DONT_CARE),
+            Int32(GLFW.RESIZABLE) => Int32(0)
+        )
+    )
 end
 
 end # module
