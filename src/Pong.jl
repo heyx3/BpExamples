@@ -28,7 +28,7 @@ const BALL_SPEEDUP_PER_HIT = Float32(1.2) # Can also write "1.2f0" for Float32
 
 # Set render/window settings:
 const FPS_CAP = 1/240 # A dumb but simple way to prevent the game from burning CPU cycles
-const VSYNC = VsyncModes.Adaptive # B+ will fall back to VsyncModes.On
+const VSYNC = VsyncModes.adaptive # B+ will fall back to VsyncModes.on
                                   #    if the monitor doesn't have adaptive vsync
 
 
