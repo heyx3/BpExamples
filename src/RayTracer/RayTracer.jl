@@ -31,6 +31,34 @@ const SOFT_MAX_RESOLUTION = 200
 
 const INITIAL_WINDOW_SIZE = 1000
 
+const WORLD = World(
+    # Objects:
+    [
+        # Floor
+        H_Plane(v3f(0, 0, 0), v3f(0, 0, 1)) =>
+            M_Lambertian(vRGBf(0.3, 0.85, 0.3)),
+
+        # Random balls
+        H_Sphere(v3f(8, 8, 1),     @f32(3.2)) => M_Lambertian(vRGBf(1,   0.5,   0.5)),
+        H_Sphere(v3f(-8, 8, -0.5), @f32(3.0)) => M_Metal(     vRGBf(0.9, 0.825, 0.23), 0.01),
+        H_Sphere(v3f(-8, -8, -8),  @f32(10)) =>  M_Metal(     vRGBf(0.9, 0.825, 0.23), 0.75),
+        H_Sphere(v3f(8, 8, 8),     @f32(1.5)) => M_Dielectric(vRGBf(1.0, 1.0,   1.0), 2.0),
+
+        # A rotated box
+        H_Box(v3f(0, 0, 3.1), v3f(1, 2, 3), fquat(vnorm(v3f(1, 2, 3)), π*0.42)) =>
+            M_Lambertian(vRGBf(0.1, 0.2, 0.15))
+    ],
+
+    # Sky:
+    S_Plain(
+        vRGBf(0.5, 0.5, 1.0),
+        vRGBf(0.1, 0.1, 0.8),
+        @f32(1.5)
+    ),
+
+    12345, 0
+)
+
 
 # The program logic, within a B+ context/window.
 function run_program(context::Bplus.GL.Context)
@@ -66,43 +94,20 @@ function run_program(context::Bplus.GL.Context)
         ),
         Matrix{vRGBf}(undef, get_window_size(window)...)
     )
-    world = World(
-        # Objects:
-        [
-            # Floor
-            H_Plane(v3f(0, 0, 0), v3f(0, 0, 1)) =>
-                M_Lambertian(vRGBf(0.3, 0.85, 0.3)),
-            
-            # Random balls
-            H_Sphere(v3f(8, 8, 1),     @f32(3.2)) => M_Lambertian(vRGBf(1,   0.5,   0.5)),
-            H_Sphere(v3f(-8, 8, -0.5), @f32(3.0)) => M_Metal(     vRGBf(0.9, 0.825, 0.23), 0.01),
-            H_Sphere(v3f(-8, -8, -8),  @f32(10)) =>  M_Metal(     vRGBf(0.9, 0.825, 0.23), 0.75),
-            H_Sphere(v3f(8, 8, 8),     @f32(1.5)) => M_Dielectric(vRGBf(1.0, 1.0,   1.0), 2.0)
-        ],
-
-        # Sky:
-        S_Plain(
-            vRGBf(0.5, 0.5, 1.0),
-            vRGBf(0.1, 0.1, 0.8),
-            @f32(1.5)
-        ),
-
-        12345, 0
-    )
 
     configure_world_inputs()
     rt_buffers = RayBuffer(v2i(SOFT_MAX_RESOLUTION, SOFT_MAX_RESOLUTION))
     # When the window size changes, update the world data accordingly.
     push!(context.glfw_callbacks_window_resized, new_size::v2i -> begin
-        @set! world.cam.aspect_width_over_height = Float32(new_size.x / new_size.y)
+        @set! viewport.cam.aspect_width_over_height = Float32(new_size.x / new_size.y)
 
         # The RT render size will max out at a certain value,
         #    give or take aspect ratio.
         rt_size = min(new_size, v2i(SOFT_MAX_RESOLUTION, SOFT_MAX_RESOLUTION))
         if new_size.x > new_size.y
-            @set! rt_size.x = Int(round(rt_size.x * world.cam.aspect_width_over_height))
+            @set! rt_size.x = Int(round(rt_size.x * viewport.cam.aspect_width_over_height))
         else
-            @set! rt_size.y = Int(round(rt_size.y / world.cam.aspect_width_over_height))
+            @set! rt_size.y = Int(round(rt_size.y / viewport.cam.aspect_width_over_height))
         end
 
         rt_buffers = RayBuffer(rt_size)
@@ -163,23 +168,24 @@ function run_program(context::Bplus.GL.Context)
         # Update.
         service_input_update(service_input)
         update_camera(viewport, delta_seconds)
-        world.current_frame += 1
+        WORLD.current_frame += 1
 
         # Render with ray-tracing.
         fill!(final_pixels, zero(vRGBf))
+        collision_precomputation = [precompute(h, WORLD) for (h, _) in WORLD.objects]
         N_BOUNCES = 5
         N_AA_SAMPLES = 5
         for aa_idx::Int in 1:N_AA_SAMPLES
-            pass_prng = ConstPRNG(aa_idx, world.current_frame, world.rng_seed)
+            pass_prng = ConstPRNG(aa_idx, WORLD.current_frame, WORLD.rng_seed)
 
             # Do AA by randomly shifting each ray by fractions of a pixel.
             (jitter_x, pass_prng) = rand(pass_prng, Float32)
             (jitter_y, pass_prng) = rand(pass_prng, Float32)
             aa_jitter = v2f(jitter_x, jitter_y)
 
-            render_pass(world, viewport,
-                        rt_buffers, [precompute(h, world) for (h, _) in world.objects],
-                        RayParams(),
+            render_pass(WORLD, viewport,
+                        rt_buffers, collision_precomputation,
+                        RayParams(atol=0.001),
                         N_BOUNCES,
                         aa_jitter)
             final_pixels .+= rt_buffers.color_left
@@ -207,7 +213,7 @@ end
 function main()
     # The ray-tracer runs better with multithreading.
     if Threads.nthreads() == 1
-        @warn "Julia is only running with 1 thread! RayTracer is faster with more threads. Pass '-t auto' to Julia to use all threads."
+        @warn "Julia is only running with 1 thread! RayTracer is faster with more threads. Pass '-t auto' when starting Julia to use all threads."
     end
 
     # Run the ray-tracer within a GL context/window.

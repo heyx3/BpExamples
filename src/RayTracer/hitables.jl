@@ -69,7 +69,7 @@ function get_first_hit(b::H_Box, r::RT_Ray, inv_rotation::fquat, params::RayPara
     r = RT_Ray(q_apply(inv_rotation, r.start),
                q_apply(inv_rotation, r.dir))
     (hits, normal) = intersections(
-        Box((center=b.center, size=b.local_size)),
+        Box(center=b.center, size=b.local_size),
         r,
         Val(true)
         ; unpack(params)...
