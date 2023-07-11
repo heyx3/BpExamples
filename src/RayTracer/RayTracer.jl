@@ -120,7 +120,7 @@ function run_program(context::Bplus.GL.Context)
         rt_buffers.size
         ;
         # Use Point filtering to make individual pixels more apparent
-        sampler = Sampler{2}(
+        sampler = TexSampler{2}(
             pixel_filter = PixelFilters.rough
         )
     )

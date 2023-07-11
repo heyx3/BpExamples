@@ -160,7 +160,7 @@ function run_game(context::Bplus.GL.Context)
 
         # Update.
         #   0. Animate:
-        winner_display = lerp(winner_display, 0, 0.2)
+        winner_display = lerp(winner_display, 0, 0.1)
         #   1. Process inputs:
         service_input_update(service_input)
         p1_pos += BAT_SPEED_PIXELS_PER_SECOND * delta_seconds *
