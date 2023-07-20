@@ -4,12 +4,12 @@ Simple examples of games made with B+
 
 ## Pong
 
-Illustrates a simple game-loop, rendering with `SimpleGraphicsService`, and doing basic collision detection
+Showcases a simple game-loop, rendering with `SimpleGraphicsService`, and basic collision detection
 
 ## RayTracer
 
-Illustrates the use of various collision shapes, as well as how easy it is to write high-performance Julia code.
+Showcases the use of various collision shapes, and techniques to use Julia for high-performance graphics.
 
-## TODO
+## TextureGen
 
-* Texture generator using Fields
+Showcases the use of Fields and GUI (specifically, Dear ImGUI)
