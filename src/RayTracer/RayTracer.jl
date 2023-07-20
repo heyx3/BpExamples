@@ -6,7 +6,10 @@ using GLFW, # The underlying window/input library used by B+
       Setfield # Helper macros ('@set!') to "modify" immutable data by copying it
 
 # B+:
-@using_bplus
+using Bplus,
+      Bplus.Utilities,
+      Bplus.Math, Bplus.GL,
+      Bplus.Input, Bplus.Helpers
 
 
 include("utils.jl")
@@ -148,8 +151,8 @@ function main()
         end
 
         LOOP = begin
-            if get_button("quit")
-                break
+            if GLFW.WindowShouldClose(LOOP.context.window) || get_button("quit")
+                break # Cleanly ends the game loop
             end
 
             # Update.
