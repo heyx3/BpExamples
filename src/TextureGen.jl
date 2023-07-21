@@ -22,21 +22,25 @@ using Bplus,
       Bplus.Input, Bplus.GUI, Bplus.Helpers,
       Bplus.Fields
 
+# Define some built-in fields for the user to reference.
+# Fields are defined with a custom Julia macro, '@field [InputDimensions] [NumberType] [DSL]'.
 const BUILTIN_FIELDS = Dict{String, String}(
-    "UV" => "pos",
-    "Clouds" => "perlin(pos * 3)",
-    "Uneven Clouds" => "perlin({ pos.x * 2, pos.y * 30 })",
+    "UV" => "@field 2 Float32 pos",
+    "Clouds" => "@field 2 Float32 perlin(pos * 3)",
+    "Uneven Clouds" => "@field 2 Float32 perlin({ pos.x * 2, pos.y * 30 })",
 
-    # This one is a multiline field.
-    "Stripes" => "
-# Declare some local variables
-let body = 0.5 + (0.5 * sin(pos.x * 26)), # Oscillate between 0 and 1
-    details = 0.25 * lerp(-1, 1, perlin(pos * 16)) # Small signed pertubations
-  clamp(body + details, 0, 1) # Output Red value between 0 and 1, automatically copied to Green and Blue
-end
-",
+    "Ripples" => "@field 2 Float32 clamp(sin(vdist(pos, 0.5) * 10 * { 4, 5, 6 }), 0, 1)",
 
-    #TODO: "Ripples" => "clamp(sin(distance(pos, 0.5) * 10), 0, 1)",
+    "Stripes" => "# Julia has an alternative macro call syntax, for multi-line statements:
+@field(2, Float32,
+    # Declare some local variables.
+    let body = 0.5 + (0.5 * sin(pos.x * 26)), # Oscillate between 0 and 1
+        details = 0.25 * lerp(-1, 1, perlin(pos * 16)) # Small signed pertubations
+      # Now output the main value.
+      clamp(body + details, 0, 1) # Output Red value between 0 and 1, automatically copied to Green and Blue
+    end
+)",
+
     #TODO: Nested 'let' blocks, as an example
 )
 
@@ -111,26 +115,20 @@ function main()
                     field_error_msg = "Unable to parse your field's syntax: $(sprint(showerror, e))"
                     return
                 end
+                if !Base.is_expr(ast[], :macrocall) || (ast[].args[1] != Symbol("@field"))
+                    field_error_msg = "Field should be deined using the @field macro"
+                    return
+                end
 
                 # Convert that syntax into a Field.
                 field = Ref{Any}()
                 try
-                    field[] = field_from_dsl(ast[], DslContext(2, Float32))
+                    field[] = Bplus.Fields.eval(ast[])
                 catch e
                     field_error_msg = "Unable to parse/compile your field: $(sprint(showerror, e))"
                     return
                 end
-
-                # Pad the field's components to make it RGBA.
-                # If it's a multi-expression field, we need to pad the last expression specifically.
-                if field[] isa AbstractField
-                    field[] = pad_field_components(field[])
-                elseif field[] isa MultiField
-                    field[] = MultiField(field[].sequence,
-                                         pad_field_components(field[].finale))
-                else
-                    error("Unexpected type of parsed DSL: ", typeof(field[]))
-                end
+                field[] = pad_field_components(field[])
 
                 field_error_msg = nothing
                 current_field = field[]
