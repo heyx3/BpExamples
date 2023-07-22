@@ -15,6 +15,7 @@ module TextureGen
 
 using GLFW, CImGui
 using CSyntax # Helps when making some CImGui calls
+using Images # Saving images to disk
 
 using Bplus,
       Bplus.Utilities,
@@ -27,15 +28,14 @@ using Bplus,
 const BUILTIN_FIELDS = Dict{String, String}(
     "UV" => "@field 2 Float32 pos",
     "Clouds" => "@field 2 Float32 perlin(pos * 3)",
-    "Uneven Clouds" => "@field 2 Float32 perlin({ pos.x * 2, pos.y * 30 })",
 
-    "Ripples" => "@field 2 Float32 clamp(sin(vdist(pos, 0.5) * 10 * { 4, 5, 6 }), 0, 1)",
+    "Ripples" => "@field 2 Float32 clamp(sin(vdist(pos, 0.5) * 24 * { 1, 1.75, 2.75 }), 0, 1)",
 
     "Stripes" => "# Julia has an alternative macro call syntax, for multi-line statements:
 @field(2, Float32,
     # Declare some local variables.
     let body = 0.5 + (0.5 * sin(pos.x * 26)), # Oscillate between 0 and 1
-        details = 0.25 * lerp(-1, 1, perlin(pos * 16)) # Small signed pertubations
+        details = 0.25 * { 0.6, 1, 10/6 } * lerp(-1, 1, perlin(pos * 16)) # Small signed pertubations
       # Now output the main value.
       clamp(body + details, 0, 1) # Output Red value between 0 and 1, automatically copied to Green and Blue
     end
@@ -55,86 +55,74 @@ function main()
         )
 
         SETUP = begin
-            # Adds or removes extra components as necessary to make a field have 4 output components.
-            # This way the user can specify e.x. only RG components and the rest are filled in.
-            function pad_field_components(f::AbstractField{2, NOut, Float32}) where {NOut}
-                # Base case.
-                if NOut == 4
-                    return f
-                # If it's missing an alpha component, append a constant alpha of 1.
-                elseif NOut == 3
-                    return AppendField(f, ConstantField{2}(Vec(@f32 1)))
-                # If it's missing color components, append 0 for them until we hit another case.
-                elseif NOut < 3
-                    return pad_field_components(
-                        AppendField(f, ConstantField{2}(Vec(@f32 0)))
-                    )
-                # If it has extra fields, truncate them.
-                elseif NOut > 4
-                    return SwizzleField(f, :xyzw)
-                else
-                    error("Invalid case: ", NOut)
-                end
-            end
-
             # DSL data.
-            # Dear ImGUI works with C-strings, so the DSL string is stored as a byte buffer.
-            current_dsl_c_buffer = Vector{UInt8}(undef, 4096)
+            # The user will edit the DSL in a multiline text-box.
+            dsl_gui = GuiText(
+                BUILTIN_FIELDS["UV"],
+                is_multiline=true,
+                multiline_requested_size=(0, 100),
+                imgui_flags = CImGui.ImGuiInputTextFlags_AllowTabInput
+            )
             current_field::AbstractField{2, 4, Float32} = ConstantField{2}(vRGBAf(0, 0, 0, 1))
             field_error_msg::Optional{String} = nothing
-            function load_dsl_string(s::String)
-                bytes = codeunits(s)
-                copyto!(current_dsl_c_buffer, bytes)
-                # Add a null terminator.
-                current_dsl_c_buffer[length(bytes) + 1] = 0
-            end
-            load_dsl_string(BUILTIN_FIELDS["UV"])
 
-            function compile_field()
-                # Make sure we can see the above variables by trying to access them.
-                # Otherwise, if we set them later in this function,
-                #    we'll just be making new local variables that hide them.
-                #TODO: Test this is really needed. If so, make a helper macro for it.
-                _ = isnothing(current_field)
-                _ = isnothing(field_error_msg)
-                _ = isnothing(current_dsl_c_buffer)
-
-                # Copy the C string into our Julia string.
-                null_terminator_idx::Optional{Int} = findfirst(iszero, current_dsl_c_buffer)
-                if isnothing(null_terminator_idx)
-                    field_error_msg = "Couldn't find the null terminator in the C string buffer"
-                    return
+            function standardize_field(f::AbstractField{2})::AbstractField{2, 4, Float32}
+                # Cast to Float32.
+                if field_component_type(f) != Float32
+                    f = ConversionField(f, Float32)
                 end
-                current_dsl = String(@view current_dsl_c_buffer[1 : null_terminator_idx-1])
+
+                # If it's greyscale, spread the greyscale value across RGB.
+                if field_output_size(f) == 1
+                    f = SwizzleField(f, :rrr)
+                # If it's RG, add a B channel of 0.
+                elseif field_output_size(f) == 2
+                    f = SwizzleField(f, :rg0)
+                end
+
+                # If it's missing alpha, add an A channel of 1.
+                if field_output_size(f) == 3
+                    f = SwizzleField(f, :rgb1)
+                end
+
+                # If it has extra components, truncate them.
+                if field_output_size(f) > 4
+                    f = SwizzleField(f, :rgba)
+                end
+
+                return f
+            end
+            function compile_field()
+                current_dsl = string(dsl_gui)
 
                 # Parse the syntax of the DSL string.
-                ast = Ref{Any}()
+                local ast # Stands for 'Abstract Syntax Tree'
                 try
-                    ast[] = Meta.parse(current_dsl)
+                    ast = Meta.parse(current_dsl)
                 catch e
-                    field_error_msg = "Unable to parse your field's syntax: $(sprint(showerror, e))"
+                    field_error_msg = "Syntax error: $(sprint(showerror, e))"
                     return
                 end
-                if !Base.is_expr(ast[], :macrocall) || (ast[].args[1] != Symbol("@field"))
-                    field_error_msg = "Field should be deined using the @field macro"
+                if !Base.is_expr(ast, :macrocall) || (ast.args[1] != Symbol("@field"))
+                    field_error_msg = "Field should be defined using the @field macro"
                     return
                 end
 
                 # Convert that syntax into a Field.
-                field = Ref{Any}()
+                local field
                 try
-                    field[] = Bplus.Fields.eval(ast[])
+                    field = Bplus.Fields.eval(ast)
                 catch e
-                    field_error_msg = "Unable to parse/compile your field: $(sprint(showerror, e))"
+                    field_error_msg = "Unable to compile your field: $(sprint(showerror, e))"
                     return
                 end
-                field[] = pad_field_components(field[])
 
+                current_field = standardize_field(field) # VSCode thinks this is a new variable, but it's not
                 field_error_msg = nothing
-                current_field = field[]
             end
 
-            #TODO: Allow a fifth output which is the bumpmap of the field
+            #TODO: Allow a fifth output channel which is the bumpmap of the field
+            #TODO: Show/allow export of bump-map, normal-map, etc
 
             # Texture settings:
             tex_size = v2i(256, 256)
@@ -154,12 +142,35 @@ function main()
                 set_tex_color(tex, tex_pixels)
             end
 
+            # Allow the user to save the image to a location.
+            home_path_gui = GuiText(pwd(); label="Absolute Path")
+            file_path_gui = GuiText("MyImage.png"; label="File Name")
+            get_full_save_path() = joinpath(string(home_path_gui), string(file_path_gui))
+            function save_image()
+                # Convert B+ pixel type to ImageIO pixel type.
+                # Also clamp the values to fit into a PNG.
+                pixel_converter(v::Bplus.Math.vRGBAf) = clamp01nan(ColorTypes.RGBA(v...))
+                file_pixel_data::Matrix = map(pixel_converter, tex_pixels)
+                # Swap the axes or else the image will look flipped along a diagonal.
+                file_pixel_data = permutedims(file_pixel_data, (2, 1))
+                save(get_full_save_path(), file_pixel_data)
+            end
+            is_confirming_save::Bool = false
+
+            # When the window resizes, update Dear ImGUI.
+            push!(LOOP.context.glfw_callbacks_window_resized, (new_size::v2i) -> begin
+                #TODO: Try using this snippet, and building this whole callback into the game loop: https://github.com/ocornut/imgui/issues/2442#issuecomment-487364993
+            end)
+
             # Set up the initial state.
             compile_field()
             if exists(field_error_msg)
                 throw(error(field_error_msg))
             end
             execute_field()
+
+            # Bring the window to the front of the user's desktop.
+            GLFW.ShowWindow(LOOP.context.window)
         end
 
         LOOP = begin
@@ -170,44 +181,109 @@ function main()
             # Clear the screen to a nice background color.
             render_clear(LOOP.context, Bplus.GL.Ptr_Target(), vRGBAf(0.4, 0.4, 0.4, 1))
 
-            if CImGui.Button("Regenerate")
-                compile_field()
-                if isnothing(field_error_msg)
-                    execute_field()
-                end
+            # Size each sub-window in terms of the overall window size.
+            window_size::v2i = Bplus.GL.get_window_size(LOOP.context)
+            function size_window_proportionately(uv_space::Box2Df)
+                pos = window_size * min_inclusive(uv_space)
+                w_size = window_size * size(uv_space)
+                CImGui.SetNextWindowPos(CImGui.ImVec2(pos...))
+                CImGui.SetNextWindowSize(CImGui.ImVec2(w_size...))
             end
 
-            # Display any error messages:
-            if exists(field_error_msg)
-                gui_with_style_color(CImGui.LibCImGui.ImGuiCol_Text, 0xFF1111FF) do
-                    CImGui.Text(field_error_msg)
-                end
-            end
-
-            # Provide the DSL text editor:
-            dsl_changed::Bool = @c CImGui.InputTextMultiline(
-                "Field",
-                &current_dsl_c_buffer[0], length(current_dsl_c_buffer),
-                (0, 100),
-                CImGui.ImGuiInputTextFlags_AllowTabInput
-            )
-
-            # Draw the image:
-            CImGui.Image(Bplus.GUI.gui_tex(tex), CImGui.ImVec2(tex.size.xy...))
-
-            # Provide a selection grid for one of the built-in fields.
-            FIELDS_PER_ROW::Int = 3
-            for (i, (name, value)) in enumerate(BUILTIN_FIELDS)
-                # If this isn't the first element in a row, put it next to the previous widget.
-                if !iszero((i-1) % FIELDS_PER_ROW)
-                    CImGui.SameLine()
-                end
-                if CImGui.Button(name)
-                    load_dsl_string(value)
+            # Show a GUI winndow for the text editor.
+            size_window_proportionately(Box2Df(min=Vec(0.01, 0.01), max=Vec(0.5, 0.99)))
+            gui_window("##Editor", C_NULL, CImGui.ImGuiWindowFlags_NoDecoration) do
+                if CImGui.Button("Regenerate")
                     compile_field()
                     if isnothing(field_error_msg)
                         execute_field()
                     end
+                end
+
+                # Display any error messages:
+                if exists(field_error_msg)
+                    gui_with_style_color(CImGui.LibCImGui.ImGuiCol_Text, 0xFF1111FF) do
+                        CImGui.Text(field_error_msg)
+                    end
+                end
+
+                # Provide the DSL text editor:
+                gui_with_item_width(-1) do
+                    gui_text!(dsl_gui)
+                end
+
+                # Provide a selection grid for one of the built-in fields.
+                CImGui.Spacing()
+                CImGui.Text("Built-in fields")
+                FIELDS_PER_ROW::Int = 4
+                for (i, (name, value)) in enumerate(BUILTIN_FIELDS)
+                    # If this isn't the first element in a row, put it next to the previous widget.
+                    if !iszero((i-1) % FIELDS_PER_ROW)
+                        CImGui.SameLine()
+                    end
+                    if CImGui.Button(name)
+                        update!(dsl_gui, value)
+                        compile_field()
+                        if isnothing(field_error_msg)
+                            execute_field()
+                        end
+                    end
+                end
+            end
+
+            # Show a GUI window for the generated image.
+            size_window_proportionately(Box2Df(min=Vec(0.5, 0.01), max=Vec(0.99, 0.5)))
+            gui_window("##Image", C_NULL, CImGui.ImGuiWindowFlags_NoDecoration) do
+                # Draw the image:
+                CImGui.Image(Bplus.GUI.gui_tex(tex), CImGui.ImVec2(tex.size.xy...))
+
+                # Allow the user to save/load an image.
+                CImGui.Dummy(1, 50)
+                CImGui.Text("Save image to disk")
+                gui_text!(home_path_gui)
+                gui_text!(file_path_gui)
+                if CImGui.Button("Save")
+                    if isfile(get_full_save_path())
+                        is_confirming_save = true
+                    else
+                        save_image()
+                    end
+                end
+            end
+
+            # Show a GUI window to confirm overwriting an image file.
+            if is_confirming_save
+                size_window_proportionately(Box2Df(center=Vec(0.5, 0.5), size=Vec(0.25, 0.25)))
+                gui_window("##ConfirmOverwrite", C_NULL, CImGui.ImGuiWindowFlags_NoDecoration) do
+                    BUTTON_SIZE = v2i(100, 100)
+                    BUTTON_SPACE = 50
+                    dialog_size = let v = CImGui.GetWindowSize()
+                        v2i(v.x, v.y)
+                    end
+                    spacing = (dialog_size / 2) - BUTTON_SIZE - (v2i(BUTTON_SPACE, 0) / 2)
+
+                    CImGui.Text("Are you sure you want to overwrite this file?")
+                    CImGui.Dummy(1, spacing.y - CImGui.GetTextLineHeight())
+
+                    CImGui.Dummy(spacing.x, 1)
+                    CImGui.SameLine()
+                    gui_with_style_color(CImGui.ImGuiCol_Button, CImGui.ImVec4(vRGBAf(1, 0.15, 0.15, 1)...)) do
+                        if CImGui.Button("Cancel", CImGui.ImVec2(BUTTON_SIZE...))
+                            is_confirming_save = false
+                        end
+                    end
+                    CImGui.SameLine()
+                    CImGui.Dummy(BUTTON_SPACE, 1)
+                    CImGui.SameLine()
+                    if CImGui.Button("Confirm", CImGui.ImVec2(BUTTON_SIZE...))
+                        is_confirming_save = false
+                        save_image()
+                    end
+
+                    CImGui.SameLine()
+                    CImGui.Dummy(spacing.x, 1)
+
+                    CImGui.Dummy(1, spacing.y)
                 end
             end
         end
