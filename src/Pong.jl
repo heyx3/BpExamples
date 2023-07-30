@@ -8,6 +8,7 @@ using GLFW, # The underlying window/input library used by B+
       Setfield # Helper macros ('@set!') to "modify" immutable data by copying it
 
 # B+:
+using Bplus
 using Bplus.Utilities,
       Bplus.Math, Bplus.GL,
       Bplus.Input, Bplus.Helpers
