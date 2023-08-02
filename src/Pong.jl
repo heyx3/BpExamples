@@ -47,9 +47,6 @@ function main()
             )
         )
 
-        # Turn off Dear ImGUI, otherwise a little GUI window will appear over the screen.
-        USE_GUI = false
-
         # Game logic:
         SETUP = begin
             # Define the ball and bat shaders.

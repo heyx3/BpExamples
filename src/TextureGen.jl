@@ -67,6 +67,8 @@ function main()
             field_error_msg::Optional{String} = nothing
 
             function standardize_field(f::AbstractField{2})::AbstractField{2, 4, Float32}
+                @nospecialize f # The type of 'f' isn't known by the caller anyway,
+                                #    and there are **many** possible types of fields.
                 # Cast to Float32.
                 if field_component_type(f) != Float32
                     f = ConversionField(f, Float32)
