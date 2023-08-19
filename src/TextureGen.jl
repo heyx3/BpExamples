@@ -47,7 +47,10 @@ const BUILTIN_FIELDS = Dict{String, String}(
 function main()
     @game_loop begin
         INIT(
-            v2i(1600, 900), "Texture generator",
+            v2i(1600, 900),
+            "Texture generator",
+
+            # Optional args:
             glfw_hints = Dict(
                 GLFW.DEPTH_BITS => GLFW.DONT_CARE,
                 GLFW.STENCIL_BITS => GLFW.DONT_CARE,
@@ -183,17 +186,8 @@ function main()
             # Clear the screen to a nice background color.
             render_clear(LOOP.context, Bplus.GL.Ptr_Target(), vRGBAf(0.4, 0.4, 0.4, 1))
 
-            # Size each sub-window in terms of the overall window size.
-            window_size::v2i = Bplus.GL.get_window_size(LOOP.context)
-            function size_window_proportionately(uv_space::Box2Df)
-                pos = window_size * min_inclusive(uv_space)
-                w_size = window_size * size(uv_space)
-                CImGui.SetNextWindowPos(CImGui.ImVec2(pos...))
-                CImGui.SetNextWindowSize(CImGui.ImVec2(w_size...))
-            end
-
             # Show a GUI winndow for the text editor.
-            size_window_proportionately(Box2Df(min=Vec(0.01, 0.01), max=Vec(0.5, 0.99)))
+            gui_next_window_space(Box2Df(min=Vec(0.01, 0.01), max=Vec(0.5, 0.99)))
             gui_window("##Editor", C_NULL, CImGui.ImGuiWindowFlags_NoDecoration) do
                 if CImGui.Button("Regenerate")
                     compile_field()
@@ -234,7 +228,7 @@ function main()
             end
 
             # Show a GUI window for the generated image.
-            size_window_proportionately(Box2Df(min=Vec(0.5, 0.01), max=Vec(0.99, 0.5)))
+            gui_next_window_space(Box2Df(min=Vec(0.5, 0.01), max=Vec(0.99, 0.5)))
             gui_window("##Image", C_NULL, CImGui.ImGuiWindowFlags_NoDecoration) do
                 # Draw the image:
                 CImGui.Image(Bplus.GUI.gui_tex(tex), CImGui.ImVec2(tex.size.xy...))
@@ -255,7 +249,7 @@ function main()
 
             # Show a GUI window to confirm overwriting an image file.
             if is_confirming_save
-                size_window_proportionately(Box2Df(center=Vec(0.5, 0.5), size=Vec(0.25, 0.25)))
+                gui_next_window_space(Box2Df(center=Vec(0.5, 0.5), size=Vec(0.25, 0.25)))
                 gui_window("##ConfirmOverwrite", C_NULL, CImGui.ImGuiWindowFlags_NoDecoration) do
                     BUTTON_SIZE = v2i(100, 100)
                     BUTTON_SPACE = 50

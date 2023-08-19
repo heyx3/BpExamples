@@ -53,7 +53,6 @@ function main()
             # Both are rendered with the standard quad from the "BasicGraphics" service.
             shader_bat::Bplus.GL.Program = bp_glsl"""
                 #START_VERTEX
-                //Vertex shader:
                 uniform vec2 u_boundsMin, u_boundsMax;
                 in vec2 vIn_pos;
                 void main() {
@@ -63,7 +62,6 @@ function main()
                 }
 
                 #START_FRAGMENT
-                //Fragment shader:
                 uniform vec4 u_color;
                 out vec4 fOut_color;
                 void main() {
@@ -72,7 +70,6 @@ function main()
             """
             shader_ball::Bplus.GL.Program = bp_glsl"""
                 #START_VERTEX
-                //Vertex shader:
                 uniform vec2 u_boundsMin, u_boundsMax;
                 in vec2 vIn_pos;
                 out vec2 vOut_uv;
@@ -83,7 +80,6 @@ function main()
                 }
 
                 #START_FRAGMENT
-                //Fragment shader:
                 in vec2 vOut_uv;
                 uniform vec4 u_color;
                 out vec4 fOut_color;
@@ -109,7 +105,7 @@ function main()
             #    it will be implemented as an axis instead of 2 separate buttons.
             # The axis will be +1 when pressing 'up', and -1 when pressing 'down'.
             create_axis("p2 vertical", AxisInput([ ButtonAsAxis(GLFW.KEY_UP),
-                                                ButtonAsAxis_Negative(GLFW.KEY_DOWN) ]))
+                                                   ButtonAsAxis_Negative(GLFW.KEY_DOWN) ]))
             sample_p2_input()::Float32 = get_axis("p2 vertical")
 
             # Set up other inputs.
