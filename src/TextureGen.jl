@@ -231,7 +231,7 @@ function main()
             gui_next_window_space(Box2Df(min=Vec(0.5, 0.01), max=Vec(0.99, 0.5)))
             gui_window("##Image", C_NULL, CImGui.ImGuiWindowFlags_NoDecoration) do
                 # Draw the image:
-                CImGui.Image(Bplus.GUI.gui_tex(tex), CImGui.ImVec2(tex.size.xy...))
+                CImGui.Image(Bplus.GUI.gui_tex_handle(tex), CImGui.ImVec2(tex.size.xy...))
 
                 # Allow the user to save/load an image.
                 CImGui.Dummy(1, 50)
