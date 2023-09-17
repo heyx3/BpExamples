@@ -1,6 +1,11 @@
-# Note that file data loaded into 'const' globals will become part of the compiled package.
+# File data is loaded into globals, making it part of the compiled package.
+
 # This means that, if you were to package this code into an executable,
-#    the files would become part of the executable!
+#    the files would become embedded in the executable.
+
+# This also unfortunately means that the project gets recompiled
+#    if you change one of these asset files.
+# In a larger project, this could be avoided by putting the assets into a separate Julia project.
 
 function read_whole_bytes(lsystem_relative_path::String)::Vector{UInt8}
     return read(joinpath(@__DIR__, lsystem_relative_path))
@@ -62,5 +67,3 @@ function load_mesh_branch()::Tuple{Bplus.GL.Mesh, AbstractVector{Bplus.GL.Buffer
     Assimp.aiReleaseImport(scene)
     return (gpu_mesh, [ gpu_indices, gpu_positions, gpu_uvs, gpu_normals ])
 end
-
-#TODO: Test with it: using BpExamples, BpExamples.LSystem; using Assimp, Assimp.LibAssimp; scene = Assimp.aiImportFile(BpExamples.LSystem._ASSET_PATH_MESH_BRANCH, |(aiProcess_FixInfacingNormals, 0x0)); aiReleaseImport(scene)
