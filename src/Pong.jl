@@ -192,8 +192,8 @@ function main()
             end
 
             # Render.
-            GL.render_clear(LOOP.context, GL.Ptr_Target(), vRGBAf(0, 0, 0, 0))
-            GL.render_clear(LOOP.context, GL.Ptr_Target(), @f32(1)) # Clears the depth buffer
+            GL.clear_screen(vRGBAf(0, 0, 0, 0)) # Clear color
+            GL.clear_screen(@f32(1)) # Clear depth
             # There are three objects to draw: P1, P2, and the ball.
             render_tasks::Tuple = (
                 # Each task is a tuple of (position, size, color, shader).

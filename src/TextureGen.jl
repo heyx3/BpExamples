@@ -184,7 +184,7 @@ function main()
             end
 
             # Clear the screen to a nice background color.
-            render_clear(LOOP.context, Bplus.GL.Ptr_Target(), vRGBAf(0.4, 0.4, 0.4, 1))
+            GL.clear_screen(vRGBAf(0.4, 0.4, 0.4, 1))
 
             # Show a GUI winndow for the text editor.
             gui_next_window_space(Box2Df(min=Vec(0.01, 0.01), max=Vec(0.5, 0.99)))

@@ -17,8 +17,8 @@ Showcases the use of Fields and GUI (our Dear ImGUI service module).
 ## L-System
 
 Uses an L-system to generate a hierarchical tree-like structure.
-Showcases the SceneTree system, loading of assets from files, and some interesting GUI stuff as well.
+Showcases basic loading of assets from files, some interesting GUI stuff, and how to make/use cubemaps.
 
 Also shows how to use Julia's array-processing features, originally intended for scientific computing,
     to hugely simplify syntax without sacrificing performance.
-This array-processing syntax also helps to prototype GPU techniques on the CPU.
+Here it's used to iterate L-systems, in a way that's both efficient and friendly to parallelization.

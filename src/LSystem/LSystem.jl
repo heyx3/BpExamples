@@ -210,35 +210,58 @@ function main()
                                              LOOP.delta_seconds)
 
             # Clear the screen's color and depth.
-            Bplus.GL.render_clear(LOOP.context,
-                                  Bplus.GL.Ptr_Target(),
-                                  vRGBAf(0.35, 0.35, 0.42, 1.0))
-            Bplus.GL.render_clear(LOOP.context,
-                                  Bplus.GL.Ptr_Target(),
-                                  Float32(1))
+            Bplus.GL.clear_screen(vRGBAf(0.35, 0.35, 0.42, 1.0))
+            Bplus.GL.clear_screen(Float32(1))
 
             # Make a GUI window for editing/updating the L-system.
             gui_next_window_space(Box2Df(min=Vec(0.01, 0.01),
                                          max=Vec(0.3, 0.49)))
             gui_window("SystemEditor", C_NULL, STATIC_WINDOW_FLAGS) do
-                gui_text!(lsystem_gui_seed)
-                if CImGui.Button("Reset")
+                LINE_BUTTON_SIZE = v2i(80, 40)
+
+                # Draw the seed value in a textbox.
+                # It should be vertically aligned with the buttons that come after it.
+                textbox_vertical_indent = (LINE_BUTTON_SIZE.y / 2) -
+                                            (CImGui.GetTextLineHeight() / 2) +
+                                            (-10) # Fudge factor
+                textbox_width = CImGui.GetContentRegionAvailWidth() - (2 * LINE_BUTTON_SIZE.x) - 50
+                gui_with_item_width(textbox_width) do
+                    gui_within_group() do
+                        CImGui.Dummy((1.0, textbox_vertical_indent))
+                        gui_text!(lsystem_gui_seed)
+                    end
+                end
+
+                # Draw 'Reset' and 'Iterate' buttons next to it.
+                CImGui.SameLine()
+                if CImGui.Button("Reset", LINE_BUTTON_SIZE.data)
                     update!(lsystem_gui_state, lsystem_gui_seed.raw_value.julia)
                 end
                 CImGui.SameLine()
-                if CImGui.Button("Iterate")
+                if CImGui.Button("Iterate", LINE_BUTTON_SIZE.data)
                     iterate!(lsystem)
                     update_gui_state()
                 end
-                gui_text!(lsystem_gui_state)
 
-                CImGui.Spacing()
-                CImGui.Spacing()
+                # Display the current state, using word-wrapping.
+                CImGui.Text("State")
+                gui_within_fold("State") do 
+                    @c CImGui.TextWrapped(&lsystem_gui_state.raw_value.c_buffer[0])
+                end
+                # gui_text!(lsystem_gui_state)
 
-                if CImGui.Button("Render")
+                CImGui.Dummy(1, 50)
+
+                # Draw the "Render" button.
+                if CImGui.Button("Render", (100, 40))
                     empty!(render_instances)
                     build_render_instances(lsystem.state, render_instances, lsystem_render_settings)
                 end
+
+                CImGui.Dummy(1, 50)
+
+                # Draw the rules being used.
+                CImGui.Combo
             end
 
             # Make a GUI window for system rendering.
@@ -297,12 +320,8 @@ function main()
             set_scissor(render_pixel_area)
             set_depth_test(ValueTests.less_than)
             set_depth_writes(true)
-            Bplus.GL.render_clear(LOOP.context,
-                                  Bplus.GL.Ptr_Target(),
-                                  vRGBAf(0.0, 0.0, 0.0, 1.0))
-            Bplus.GL.render_clear(LOOP.context,
-                                  Bplus.GL.Ptr_Target(),
-                                  Float32(1))
+            clear_screen(vRGBAf(0.0, 0.0, 0.0, 1.0))
+            clear_screen(Float32(1))
             mat_view = cam_view_mat(cam)
             mat_proj = cam_projection_mat(cam)
             mat_vp = m_combine(cam_view_mat(cam), cam_projection_mat(cam))

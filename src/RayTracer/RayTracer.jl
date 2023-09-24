@@ -189,8 +189,8 @@ function main()
 
             # Render the ray-traced scene to the screen.
             GL.set_viewport(Box(min=v2i(1, 1), size=get_window_size(LOOP.context)))
-            GL.render_clear(LOOP.context, GL.Ptr_Target(), vRGBAf(0, 0, 0, 0))
-            GL.render_clear(LOOP.context, GL.Ptr_Target(), @f32(1)) # Clears the depth buffer
+            GL.clear_screen(vRGBAf(0, 0, 0, 0)) # Clear color
+            GL.clear_screen(@f32(1)) # Clear depth
             # We can use the 'SimpleGraphics' service to draw the texture to the screen;
             #    no custom shader necessary.
             set_tex_color(screen_tex, final_pixels)
