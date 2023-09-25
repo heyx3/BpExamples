@@ -16,7 +16,8 @@ abstract type AbstractSky end
 Base.@kwdef struct RayParams
     min_t::Float32 = 0
     max_t::Float32 = +Inf
-    atol::Float32 = 0
+    atol::Float32 = 0 # Julia's abbreviation for "Absolute Tolerance",
+                      #   a.k.a. a constant epsilon value
 end
 "Formats the parameters for passing as named arguments into `Bplus.Math.intersections()`"
 unpack(p::RayParams) = (min_t=p.min_t, max_t=p.max_t, atol=p.atol)
@@ -63,5 +64,4 @@ end
 mutable struct Viewport
     cam::Cam3D{Float32}
     cam_settings::Cam3D_Settings{Float32}
-    image_pixels::Matrix{vRGBf}
 end
