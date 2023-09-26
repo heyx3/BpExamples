@@ -3,13 +3,33 @@ module RayTracer
 
 # External dependencies:
 using GLFW, # The underlying window/input library used by B+
+      CImGui, # The main GUI library integrated with B+
       Setfield # Helper macros ('@set!') to "modify" immutable data by copying it
 
 # B+:
 using Bplus,
       Bplus.Utilities,
       Bplus.Math, Bplus.GL,
-      Bplus.Input, Bplus.Helpers
+      Bplus.Input, Bplus.GUI, Bplus.Helpers
+
+
+# When debugging multithreaded apps, it helps to have thread-safe logging.
+const LOG_ENABLED = false
+const LOGGER = Ref{IO}(stdout)
+const LOG_LOCKER = ReentrantLock()
+function change_log_destination(dest::IO)
+    lock(() -> (LOGGER[] = dest), LOG_LOCKER)
+end
+macro threaded_log(args...)
+    if LOG_ENABLED
+        args = esc.(args)
+        return :(
+            lock(() -> println(LOGGER[], $(args...)), LOG_LOCKER)
+        )
+    else
+        return :( )
+    end
+end
 
 
 include("utils.jl")
@@ -20,14 +40,7 @@ include("skies.jl")
 include("materials.jl")
 
 include("logic.jl")
-
-"
-The resolution of the renderer is kept roughly around here,
-but increased along one axis to correct for aspect ratio.
-
-Usually kept much smaller than the window size, because ray-tracing is slow.
-"
-const SOFT_MAX_RESOLUTION = 200
+include("render_task.jl")
 
 const INITIAL_WINDOW_SIZE = 1000
 
@@ -78,6 +91,11 @@ function main()
                 @warn "Julia is only running with 1 thread! RayTracer is faster with more threads. Pass '-t auto' when starting Julia to use all threads."
             end
 
+            # Ray-tracers naturally have a very low framerate.
+            # So increase the cap on this game loop's frame duration.
+            # Units are in seconds.
+            LOOP.max_frame_duration = 0.3
+
             # Configure the world and viewport.
             viewport = Viewport(
                 Cam3D{Float32}(
@@ -97,57 +115,89 @@ function main()
                     move_speed = 5,
                     turn_speed_degrees = 4
                     # Rest of the settings are fine with their defaults
+                )
+            )
+            # Keep the rendering on its own thread (see "render_task.jl" for the implementation).
+            renderer = RenderTask(
+                # Mini-renders:
+                RenderSettings(
+                    max(one(v2i), get_window_size() ÷ 16),
+                    2,
+                    1
                 ),
-                Matrix{vRGBf}(undef, get_window_size(LOOP.context.window)...)
+                # Full-size renders:
+                RenderSettings(
+                    get_window_size() ÷ 8,
+                    5,
+                    50
+                ),
+                WORLD, viewport
             )
 
+            # Set up input.
             configure_world_inputs()
-            rt_buffers = RayBuffer(v2i(SOFT_MAX_RESOLUTION, SOFT_MAX_RESOLUTION))
+            Bplus.Input.create_button("quit", Bplus.Input.ButtonInput(GLFW.KEY_ESCAPE))
+            GLFW.SetInputMode(LOOP.context.window, GLFW.CURSOR, GLFW.CURSOR_DISABLED)
+
             # When the window size changes, update the world data accordingly.
             push!(LOOP.context.glfw_callbacks_window_resized, new_size::v2i -> begin
                 @set! viewport.cam.aspect_width_over_height = Float32(new_size.x / new_size.y)
 
-                # The RT render size will max out at a certain value,
-                #    give or take aspect ratio.
-                rt_size = min(new_size, v2i(SOFT_MAX_RESOLUTION, SOFT_MAX_RESOLUTION))
-                if new_size.x > new_size.y
-                    @set! rt_size.x = Int(round(rt_size.x * viewport.cam.aspect_width_over_height))
-                else
-                    @set! rt_size.y = Int(round(rt_size.y / viewport.cam.aspect_width_over_height))
-                end
-
-                rt_buffers = RayBuffer(rt_size)
+                # Replace the renderer with a different-sized one.
+                close(renderer)
+                renderer = RenderTask(
+                    # Resize the mini and full renderer settings to match the new window size.
+                    # '@set' returns a modified copy of some data.
+                    let setting = renderer.mini_render_settings
+                        @set setting.resolution = max(one(v2i), new_size ÷ 16)
+                    end,
+                    let setting = renderer.full_render_settings
+                        @set setting.resolution = new_size
+                    end,
+                    (viewport.cam, WORLD.current_frame),
+                    renderer.full_render_delay_seconds
+                )
             end)
 
             # To draw to the screen, we'll need to dump the ray-tracer results into a GL texture
-            #    and render that texture.
-            final_pixels = Matrix{vRGBf}(undef, rt_buffers.size...)
-            screen_tex = Bplus.GL.Texture(
-                Bplus.GL.SimpleFormat(
-                    Bplus.GL.FormatTypes.normalized_uint,
-                    Bplus.GL.SimpleFormatComponents.RGB,
-                    Bplus.GL.SimpleFormatBitDepths.B8
-                ),
-                rt_buffers.size
-                ;
-                # Use Point filtering to make individual pixels more apparent
-                sampler = TexSampler{2}(
-                    pixel_filter = PixelFilters.rough
-                )
-            )
-            # When the window size changes, reallocate the output texture.
-            push!(LOOP.context.glfw_callbacks_window_resized, new_size::v2i -> begin
-                # Use the downscaled size that was calculated in the above callback.
-                rt_size = rt_buffers.size
-                if screen_tex.size.xy != rt_size
-                    tex_format = screen_tex.format
-                    close(screen_tex)
-                    screen_tex = Bplus.GL.Texture(tex_format, rt_size)
+            #    and render that to the screen.
+            # The ray-tracer will generate textures of various sizes.
+            screen_textures = Dict{v2u, Bplus.GL.Texture}()
+            newest_texture = Ref{Bplus.GL.Texture}()
+            function update_textures(new_pixels::Matrix{vRGBf})
+                # Get or create a texture of the right size.
+                tex_size::v2i = vsize(new_pixels)
+                tex = get(screen_textures, tex_size) do
+                    return Bplus.GL.Texture(
+                        Bplus.GL.SimpleFormat(
+                            Bplus.GL.FormatTypes.normalized_uint,
+                            Bplus.GL.SimpleFormatComponents.RGB,
+                            Bplus.GL.SimpleFormatBitDepths.B8
+                        ),
+                        tex_size
+                        ;
+                        # Use Point filtering to make individual pixels more apparent
+                        sampler = TexSampler{2}(
+                            pixel_filter = PixelFilters.rough
+                        )
+                    )
                 end
+                newest_texture[] = tex
+
+                # Upload the pixels to the GPU.
+                set_tex_color(tex, new_pixels)
+            end
+            # When the window size changes, so does the render size, so clear the old textures.
+            push!(LOOP.context.glfw_callbacks_window_resized, new_size::v2i -> begin
+                for tex in values(screen_textures)
+                    close(tex)
+                end
+                empty!(screen_textures)
             end)
 
-            Bplus.Input.create_button("quit", ButtonInput(GLFW.KEY_ESCAPE))
-            GLFW.SetInputMode(LOOP.context.window, GLFW.CURSOR, GLFW.CURSOR_DISABLED)
+            # Initialize debug logging.
+            total_seconds::Float32 = 0
+            LOG_ENABLED && change_log_destination(open("TickLog.txt", "w"))
         end
 
         LOOP = begin
@@ -155,46 +205,57 @@ function main()
                 break # Cleanly ends the game loop
             end
 
-            # Update.
-            update_camera(viewport, LOOP.delta_seconds)
+            # Update timing data.
+            total_seconds += LOOP.delta_seconds
+            if (LOOP.frame_idx % 11) == 0
+                @threaded_log "\t\t\t\t\tGame tick: " total_seconds
+            end
             WORLD.current_frame = LOOP.frame_idx
 
-            # Render with ray-tracing.
-            fill!(final_pixels, zero(vRGBf))
-            collision_precomputation = [precompute(h, WORLD) for (h, _) in WORLD.objects]
-            N_BOUNCES = 5
-            N_AA_SAMPLES = 5
-            for aa_idx::Int in 1:N_AA_SAMPLES
-                pass_prng = ConstPRNG(aa_idx, WORLD.current_frame, WORLD.rng_seed)
-
-                # Do AA by randomly shifting each ray by fractions of a pixel.
-                (jitter_x, pass_prng) = rand(pass_prng, Float32)
-                (jitter_y, pass_prng) = rand(pass_prng, Float32)
-                aa_jitter = v2f(jitter_x, jitter_y)
-    
-                render_pass(WORLD, viewport,
-                            rt_buffers, collision_precomputation,
-                            RayParams(atol=0.001),
-                            N_BOUNCES,
-                            aa_jitter)
-                final_pixels .+= rt_buffers.color_left
+            # Update the camera, but don't let the player screw up the camera
+            #    if we're in the middle of a full-size render.
+            if !@atomic renderer.doing_full_render
+                update_camera(viewport, LOOP.delta_seconds)
             end
-            final_pixels ./= N_AA_SAMPLES
 
-            # Apply gamma-correction and other tonemapping.
-            # Obviously this could be sped up in a shader, but it's a good example
-            #    of how to write high-performance Julia code.
-            tonemap(c) = clamp(c ^ @f32(1 / 2.0), 0, 1)
-            final_pixels .= tonemap.(final_pixels)
+            # In a single-threaded Julia process, we'll need to give the rendering task some space.
+            # 'yield()' gives other tasks a chance to interrupt this one.
+            yield()
+            update_renderer_game_task(update_textures, renderer)
 
-            # Render the ray-traced scene to the screen.
-            GL.set_viewport(Box(min=v2i(1, 1), size=get_window_size(LOOP.context)))
+            # Display the most recent output from the render Task.
+            #TODO: Display it as a plane in world space so you can visualize the camera delta
+            GL.set_viewport(Box(min=v2i(1, 1), size=get_window_size()))
             GL.clear_screen(vRGBAf(0, 0, 0, 0)) # Clear color
             GL.clear_screen(@f32(1)) # Clear depth
             # We can use the 'SimpleGraphics' service to draw the texture to the screen;
             #    no custom shader necessary.
-            set_tex_color(screen_tex, final_pixels)
-            simple_blit(screen_tex)
+            if isassigned(newest_texture) # Don't draw if we haven't even produced a frame yet
+                simple_blit(newest_texture[])
+            end
+
+            # If the full render is happening, display a notification window.
+            if @atomic renderer.doing_full_render
+                gui_next_window_space(Box(
+                    min = v2f(0.1, 0.02),
+                    max = v2f(0.9, 0.1)
+                ))
+                gui_window("Message Window", C_NULL, CImGui.LibCImGui.ImGuiWindowFlags_NoDecoration) do
+                    CImGui.Text("Rendering high-quality view...")
+                end
+            end
+        end
+
+        TEARDOWN = begin
+            # Kill the rendering thread.
+            close(renderer)
+
+            # Clean up the log file.
+            if LOG_ENABLED
+                log_file = LOGGER[]
+                change_log_destination(stdout)
+                close(log_file)
+            end
         end
     end
 end
