@@ -173,11 +173,14 @@ function build_render_instances(input::AsciiString,
                 @set! color_hsl.h /= 360
 
                 if command == Commands.shift_hue
-                    @set! color_hsl.h = fract(color_hsl.h + settings.hsl_shift.x)
+                    shift = settings.hsl_shift.x * (settings.depth_shrink_hsl_shift.x ^ current_state.depth)
+                    @set! color_hsl.h = fract(color_hsl.h + shift)
                 elseif command == Commands.shift_saturation
-                    @set! color_hsl.s = saturate(color_hsl.s + settings.hsl_shift.y)
+                    shift = settings.hsl_shift.y * (settings.depth_shrink_hsl_shift.y ^ current_state.depth)
+                    @set! color_hsl.s = saturate(color_hsl.s + shift)
                 elseif command == Commands.shift_lightness
-                    @set! color_hsl.l = saturate(color_hsl.l + settings.hsl_shift.z)
+                    shift = settings.hsl_shift.z * (settings.depth_shrink_hsl_shift.z ^ current_state.depth)
+                    @set! color_hsl.l = saturate(color_hsl.l + shift)
                 else
                     error("Color: ", command)
                 end

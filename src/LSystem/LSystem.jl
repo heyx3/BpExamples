@@ -245,10 +245,7 @@ function main()
 
                 # Display the current state, using word-wrapping.
                 CImGui.Text("State")
-                gui_within_fold("State") do 
-                    @c CImGui.TextWrapped(&lsystem_gui_state.raw_value.c_buffer[0])
-                end
-                # gui_text!(lsystem_gui_state)
+                @c CImGui.TextWrapped(&lsystem_gui_state.raw_value.c_buffer[0])
 
                 CImGui.Dummy(1, 50)
 
