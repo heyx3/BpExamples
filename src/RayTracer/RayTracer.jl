@@ -242,6 +242,7 @@ function main()
                 ))
                 gui_window("Message Window", C_NULL, CImGui.LibCImGui.ImGuiWindowFlags_NoDecoration) do
                     CImGui.Text("Rendering high-quality view...")
+                    #TODO: Add a progress bar
                 end
             end
         end
