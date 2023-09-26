@@ -27,6 +27,7 @@ mutable struct RenderTask
     world::World
     viewport::Viewport
     @atomic kill_task::Bool # Don't set this directly; call 'close()' instead.
+    @atomic doing_full_render::Bool # Render task sets this when starting the big render
 
     # This forces the end-of-frame logic to always happen at once, with no interruption from other tasks:
     #    kill_task, image_submitter, and image_acknowledger.
@@ -39,7 +40,7 @@ end
 "Kicks off a new render thread"
 function RenderTask(mini_render_settings::RenderSettings, full_render_settings::RenderSettings,
                     world::World, viewport::Viewport,
-                    full_render_delay_seconds = 5.0)
+                    full_render_delay_seconds = 2.0)
     # Warn the user if they gave bad settings.
     mini_complexity = prod(mini_render_settings.resolution) *
                           mini_render_settings.n_bounces *
@@ -63,7 +64,7 @@ function RenderTask(mini_render_settings::RenderSettings, full_render_settings::
                           RayBuffer(convert(v2i, mini_render_settings.resolution)),
                           RayBuffer(convert(v2i, full_render_settings.resolution)),
                           world, viewport,
-                          false, ReentrantLock(),
+                          false, false, ReentrantLock(),
                           full_render_delay_seconds)
 
     # Start running the render task, then return the data.
@@ -165,7 +166,7 @@ function run_render_task(controller::RenderTask)
         if !submit_rendered_frame(controller.mini_render_output)
             break
         end
-        lock(() -> println(LOGGER[], "Renderer tick mini: ", current_elapsed_seconds()), LOG_LOCKER)
+        @threaded_log "RENDER: tick mini: " current_elapsed_seconds()
 
         # Wait for a bit and if the scene hasn't changed at all, queue up a full render.
         do_full_render::Bool = (current_scene_hash == hash_scene_state())
@@ -174,11 +175,15 @@ function run_render_task(controller::RenderTask)
             # If time is up, do the full render!
             total_wait_seconds = ((time_ns() - start_time) / 1e9)
             if total_wait_seconds >= controller.full_render_delay_seconds
+                @threaded_log "RENDER: Time's up, do the full render!"
                 break
             end
+            sleep(0.1)
+            @threaded_log "RENDER: Still waiting; " total_wait_seconds " seconds so far"
 
             # If the scene changes, start a fresh mini-render.
             if current_scene_hash != hash_scene_state()
+                @threaded_log "RENDER: The scene changed! Restarting a mini-render..."
                 do_full_render = false
                 break
             end
@@ -186,17 +191,21 @@ function run_render_task(controller::RenderTask)
 
         # Finally do the full render.
         if do_full_render
+            @atomic controller.doing_full_render = true
+            #TODO: Perform successive AA passes rather than one big one
             calculate_rendered_frame(controller.full_render_settings,
                                      controller.full_render_rays,
                                      controller.full_render_output)
+            @atomic controller.doing_full_render = false
             if !submit_rendered_frame(controller.full_render_output)
                 break
             end
         end
-        lock(() -> println(LOGGER[], "Renderer tick full: ", current_elapsed_seconds()), LOG_LOCKER)
 
         # Wait for the world to change again.
-        #TODO: Perform successive AA passes rather than one big one
+        while current_scene_hash == hash_scene_state()
+            sleep(0.1)
+        end
     end
 end
 

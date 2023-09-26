@@ -3,13 +3,33 @@ module RayTracer
 
 # External dependencies:
 using GLFW, # The underlying window/input library used by B+
+      CImGui, # The main GUI library integrated with B+
       Setfield # Helper macros ('@set!') to "modify" immutable data by copying it
 
 # B+:
 using Bplus,
       Bplus.Utilities,
       Bplus.Math, Bplus.GL,
-      Bplus.Input, Bplus.Helpers
+      Bplus.Input, Bplus.GUI, Bplus.Helpers
+
+
+# When debugging multithreaded apps, it helps to have thread-safe logging.
+const LOG_ENABLED = false
+const LOGGER = Ref{IO}(stdout)
+const LOG_LOCKER = ReentrantLock()
+function change_log_destination(dest::IO)
+    lock(() -> (LOGGER[] = dest), LOG_LOCKER)
+end
+macro threaded_log(args...)
+    if LOG_ENABLED
+        args = esc.(args)
+        return :(
+            lock(() -> println(LOGGER[], $(args...)), LOG_LOCKER)
+        )
+    else
+        return :( )
+    end
+end
 
 
 include("utils.jl")
@@ -52,9 +72,6 @@ const WORLD = World(
     12345, 0
 )
 
-const LOGGER = Ref{IO}(stdout)
-const LOG_LOCKER = ReentrantLock()
-
 
 function main()
     @game_loop begin
@@ -73,6 +90,11 @@ function main()
             if Threads.nthreads() == 1
                 @warn "Julia is only running with 1 thread! RayTracer is faster with more threads. Pass '-t auto' when starting Julia to use all threads."
             end
+
+            # Ray-tracers naturally have a very low framerate.
+            # So increase the cap on this game loop's frame duration.
+            # Units are in seconds.
+            LOOP.max_frame_duration = 0.3
 
             # Configure the world and viewport.
             viewport = Viewport(
@@ -105,9 +127,9 @@ function main()
                 ),
                 # Full-size renders:
                 RenderSettings(
-                    get_window_size(),
+                    get_window_size() ÷ 8,
                     5,
-                    5
+                    50
                 ),
                 WORLD, viewport
             )
@@ -175,7 +197,7 @@ function main()
 
             # Initialize debug logging.
             total_seconds::Float32 = 0
-            LOGGER[] = open("TickLog.txt", "w")
+            LOG_ENABLED && change_log_destination(open("TickLog.txt", "w"))
         end
 
         LOOP = begin
@@ -183,17 +205,25 @@ function main()
                 break # Cleanly ends the game loop
             end
 
-            # Update.
+            # Update timing data.
             total_seconds += LOOP.delta_seconds
             if (LOOP.frame_idx % 11) == 0
-                lock(() -> println(LOGGER[], "Game tick: ", total_seconds), LOG_LOCKER)
+                @threaded_log "\t\t\t\t\tGame tick: " total_seconds
             end
             WORLD.current_frame = LOOP.frame_idx
-            update_camera(viewport, LOOP.delta_seconds)
-            yield() # In a single-threaded Julia process, we need to give the rendering task some space.
+
+            # Update the camera, but don't let the player screw up the camera
+            #    if we're in the middle of a full-size render.
+            if !@atomic renderer.doing_full_render
+                update_camera(viewport, LOOP.delta_seconds)
+            end
+
+            # In a single-threaded Julia process, we'll need to give the rendering task some space.
+            # 'yield()' gives other tasks a chance to interrupt this one.
+            yield()
             update_renderer_game_task(update_textures, renderer)
 
-            # Display the most recent ray-tracer output.
+            # Display the most recent output from the render Task.
             #TODO: Display it as a plane in world space so you can visualize the camera delta
             GL.set_viewport(Box(min=v2i(1, 1), size=get_window_size()))
             GL.clear_screen(vRGBAf(0, 0, 0, 0)) # Clear color
@@ -203,6 +233,17 @@ function main()
             if isassigned(newest_texture) # Don't draw if we haven't even produced a frame yet
                 simple_blit(newest_texture[])
             end
+
+            # If the full render is happening, display a notification window.
+            if @atomic renderer.doing_full_render
+                gui_next_window_space(Box(
+                    min = v2f(0.1, 0.02),
+                    max = v2f(0.9, 0.1)
+                ))
+                gui_window("Message Window", C_NULL, CImGui.LibCImGui.ImGuiWindowFlags_NoDecoration) do
+                    CImGui.Text("Rendering high-quality view...")
+                end
+            end
         end
 
         TEARDOWN = begin
@@ -210,8 +251,11 @@ function main()
             close(renderer)
 
             # Clean up the log file.
-            close(LOGGER[])
-            LOGGER[] = stdout
+            if LOG_ENABLED
+                log_file = LOGGER[]
+                change_log_destination(stdout)
+                close(log_file)
+            end
         end
     end
 end

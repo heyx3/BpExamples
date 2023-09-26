@@ -12,6 +12,8 @@ Showcases a simple game-loop, rendering with `SimpleGraphicsService`, and basic 
 
 Showcases the use of various collision shapes, and techniques to use Julia for high-performance graphics.
 
+Also shows multithreading in Julia, pushing the ray-tracer calculations off to separate threads.
+
 ## TextureGen
 
 Showcases the use of Fields and GUI (our Dear ImGUI service module).
