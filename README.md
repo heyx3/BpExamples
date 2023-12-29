@@ -2,7 +2,7 @@
 
 Illustrative examples of interactive apps [made with B+](https://github.com/heyx3/B-plus/). Run by executing `julia path/to/BpExamples/run.jl`.
 
-To be as clear as possible about where functions and types come from, this code endeavors to name all B+ stuff explicitly. For example, `Texture` is written as `Bplus.GL.Texture`. You don't have to do this in your own code!
+To be as clear as possible about where functions and types come from, this code endeavors to name all B+ stuff explicitly. For example, `Texture` is written as `BplusApp.GL.Texture`. You don't have to do this in your own code!
 
 ## Pong
 

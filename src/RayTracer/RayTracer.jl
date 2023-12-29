@@ -7,10 +7,7 @@ using GLFW, # The underlying window/input library used by B+
       Setfield # Helper macros ('@set!') to "modify" immutable data by copying it
 
 # B+:
-using Bplus,
-      Bplus.Utilities,
-      Bplus.Math, Bplus.GL,
-      Bplus.Input, Bplus.GUI, Bplus.Helpers
+using Bplus; @using_bplus
 
 
 # When debugging multithreaded apps, it helps to have thread-safe logging.
@@ -136,7 +133,7 @@ function main()
 
             # Set up input.
             configure_world_inputs()
-            Bplus.Input.create_button("quit", Bplus.Input.ButtonInput(GLFW.KEY_ESCAPE))
+            BplusApp.Input.create_button("quit", BplusApp.Input.ButtonInput(GLFW.KEY_ESCAPE))
             GLFW.SetInputMode(LOOP.context.window, GLFW.CURSOR, GLFW.CURSOR_DISABLED)
 
             # When the window size changes, update the world data accordingly.
@@ -162,17 +159,17 @@ function main()
             # To draw to the screen, we'll need to dump the ray-tracer results into a GL texture
             #    and render that to the screen.
             # The ray-tracer will generate textures of various sizes.
-            screen_textures = Dict{v2u, Bplus.GL.Texture}()
-            newest_texture = Ref{Bplus.GL.Texture}()
+            screen_textures = Dict{v2u, BplusApp.GL.Texture}()
+            newest_texture = Ref{BplusApp.GL.Texture}()
             function update_textures(new_pixels::Matrix{vRGBf})
                 # Get or create a texture of the right size.
                 tex_size::v2i = vsize(new_pixels)
                 tex = get(screen_textures, tex_size) do
-                    return Bplus.GL.Texture(
-                        Bplus.GL.SimpleFormat(
-                            Bplus.GL.FormatTypes.normalized_uint,
-                            Bplus.GL.SimpleFormatComponents.RGB,
-                            Bplus.GL.SimpleFormatBitDepths.B8
+                    return BplusApp.GL.Texture(
+                        BplusApp.GL.SimpleFormat(
+                            BplusApp.GL.FormatTypes.normalized_uint,
+                            BplusApp.GL.SimpleFormatComponents.RGB,
+                            BplusApp.GL.SimpleFormatBitDepths.B8
                         ),
                         tex_size
                         ;

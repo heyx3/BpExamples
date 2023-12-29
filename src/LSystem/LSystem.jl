@@ -19,13 +19,10 @@ using StatsBase, DataStructures, CSyntax,
       Colors
 
 # B+:
-using Bplus
-using Bplus.Utilities, Bplus.Math,
-      Bplus.GL, Bplus.SceneTree,
-      Bplus.GUI, Bplus.Input, Bplus.Helpers
+using Bplus; @using_bplus
 
 # Fix ambiguity between 'update!()' in B+ and in DataStructures:
-const update! = Bplus.Utilities.update!
+const update! = BplusCore.Utilities.update!
 
 
 # For performance, characters are limited to 1-byte ascii.
@@ -210,8 +207,8 @@ function main()
                                              LOOP.delta_seconds)
 
             # Clear the screen's color and depth.
-            Bplus.GL.clear_screen(vRGBAf(0.35, 0.35, 0.42, 1.0))
-            Bplus.GL.clear_screen(Float32(1))
+            BplusApp.GL.clear_screen(vRGBAf(0.35, 0.35, 0.42, 1.0))
+            BplusApp.GL.clear_screen(Float32(1))
 
             # Make a GUI window for editing/updating the L-system.
             gui_next_window_space(Box2Df(min=Vec(0.01, 0.01),

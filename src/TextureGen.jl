@@ -1,5 +1,5 @@
 "
-A little tool to generate interesting 2D textures using `Bplus.Fields`.
+A little tool to generate interesting 2D textures using `BplusTools.Fields`.
 
 Fields are a data representation of functions mapping an input vector to an output vector.
 In this case, we are mapping 2D vectors (UV coordinate) to 4D vectors (RGBA pixel).
@@ -17,11 +17,7 @@ using GLFW, CImGui
 using CSyntax # Helps when making some CImGui calls
 using Images # Saving images to disk
 
-using Bplus,
-      Bplus.Utilities,
-      Bplus.Math, Bplus.GL, Bplus.SceneTree,
-      Bplus.Input, Bplus.GUI, Bplus.Helpers,
-      Bplus.Fields
+using Bplus; @using_bplus
 
 # Define some built-in fields for the user to reference.
 # Fields are defined with a custom Julia macro, '@field [InputDimensions] [NumberType] [DSL]'.
@@ -116,7 +112,7 @@ function main()
                 # Convert that syntax into a Field.
                 local field
                 try
-                    field = Bplus.Fields.eval(ast)
+                    field = BplusTools.Fields.eval(ast)
                 catch e
                     field_error_msg = "Unable to compile your field: $(sprint(showerror, e))"
                     return
@@ -154,7 +150,7 @@ function main()
             function save_image()
                 # Convert B+ pixel type to ImageIO pixel type.
                 # Also clamp the values to fit into a PNG.
-                pixel_converter(v::Bplus.Math.vRGBAf) = clamp01nan(ColorTypes.RGBA(v...))
+                pixel_converter(v::BplusCore.Math.vRGBAf) = clamp01nan(ColorTypes.RGBA(v...))
                 file_pixel_data::Matrix = map(pixel_converter, tex_pixels)
                 # Swap the axes or else the image will look flipped along a diagonal.
                 file_pixel_data = permutedims(file_pixel_data, (2, 1))
@@ -204,6 +200,7 @@ function main()
                 end
 
                 # Provide the DSL text editor:
+                #TODO: Larger font size
                 gui_with_item_width(-1) do
                     gui_text!(dsl_gui)
                 end
@@ -231,7 +228,7 @@ function main()
             gui_next_window_space(Box2Df(min=Vec(0.5, 0.01), max=Vec(0.99, 0.5)))
             gui_window("##Image", C_NULL, CImGui.ImGuiWindowFlags_NoDecoration) do
                 # Draw the image:
-                CImGui.Image(Bplus.GUI.gui_tex_handle(tex), CImGui.ImVec2(tex.size.xy...))
+                CImGui.Image(BplusApp.GUI.gui_tex_handle(tex), CImGui.ImVec2(tex.size.xy...))
 
                 # Allow the user to save/load an image.
                 CImGui.Dummy(1, 50)

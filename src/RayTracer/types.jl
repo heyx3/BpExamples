@@ -1,5 +1,5 @@
 "The type of ray used for our ray-tracer (3D, 32-bit float)"
-const RT_Ray = Bplus.Math.Ray{3, Float32}
+const RT_Ray = BplusCore.Math.Ray{3, Float32}
 
 "Something that a ray can hit"
 abstract type AbstractHitable end
@@ -19,7 +19,7 @@ Base.@kwdef struct RayParams
     atol::Float32 = 0 # Julia's abbreviation for "Absolute Tolerance",
                       #   a.k.a. a constant epsilon value
 end
-"Formats the parameters for passing as named arguments into `Bplus.Math.intersections()`"
+"Formats the parameters for passing as named arguments into `BplusCore.Math.intersections()`"
 unpack(p::RayParams) = (min_t=p.min_t, max_t=p.max_t, atol=p.atol)
 
 "All information about a ray hit"

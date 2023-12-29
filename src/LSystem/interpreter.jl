@@ -83,7 +83,7 @@ struct RenderInstance
 end
 
 function render(instance::RenderInstance,
-                mesh::Bplus.GL.Mesh, prog::Bplus.GL.Program,
+                mesh::BplusApp.GL.Mesh, prog::BplusApp.GL.Program,
                 mat_viewproj::fmat4)
     mat_world::fmat4 = m4_world(
         instance.pos,

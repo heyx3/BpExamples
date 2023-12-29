@@ -59,9 +59,9 @@ function generate_main_rays(viewport::Viewport, buffer::RayBuffer, pixel_jitter:
 
         pixel_world_dir::v3f = vnorm(pixel_world_pos - viewport.cam.pos)
 
-        buffer.rays[pixel...] = RT_Ray(pixel_world_pos, pixel_world_dir)
-        buffer.color_left[pixel...] = vRGBf(1, 1, 1)
-        buffer.hits[pixel...] = nothing
+        buffer.rays[pixel] = RT_Ray(pixel_world_pos, pixel_world_dir)
+        buffer.color_left[pixel] = vRGBf(1, 1, 1)
+        buffer.hits[pixel] = nothing
     end
 
     return nothing # prevents the last expression from leaking out as a return value
@@ -69,7 +69,7 @@ end
 
 "Gets or creates a bucket for storing pixels that need to be rendered by the given material"
 function get_material_bucket(buffer::RayBuffer, m::AbstractMaterial)::Vector{UInt32}
-    @nospecialize m
+    @nospecialize m # Boxing 'm' is better than dynamically recompiling for each possible type.
 
     if haskey(buffer.material_buckets, m)
         return buffer.material_buckets[m]

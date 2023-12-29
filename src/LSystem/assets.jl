@@ -18,7 +18,7 @@ end
 const _ASSET_PATH_MESH_BRANCH = joinpath(@__DIR__, "branch.obj")
 const ASSET_BYTES_MESH_BRANCH = read_whole_bytes(_ASSET_PATH_MESH_BRANCH)
 include_dependency(_ASSET_PATH_MESH_BRANCH)
-function load_mesh_branch()::Tuple{Bplus.GL.Mesh, AbstractVector{Bplus.GL.Buffer}}
+function load_mesh_branch()::Tuple{BplusApp.GL.Mesh, AbstractVector{BplusApp.GL.Buffer}}
     scene = Assimp.aiImportFileFromMemory(
         ASSET_BYTES_MESH_BRANCH,
         length(ASSET_BYTES_MESH_BRANCH),

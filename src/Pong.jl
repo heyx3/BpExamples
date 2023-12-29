@@ -8,14 +8,11 @@ using GLFW, # The underlying window/input library used by B+
       Setfield # Helper macros ('@set!') to "modify" immutable data by copying it
 
 # B+:
-using Bplus
-using Bplus.Utilities,
-      Bplus.Math, Bplus.GL,
-      Bplus.Input, Bplus.Helpers
+using Bplus; @using_bplus
 
 
 # Set the size of the level and objects, in pixels.
-#  'v2i' means 'vector of 2 ints'; short-hand for 'Bplus.Math.Vec{2, Int32}'.
+#  'v2i' means 'vector of 2 ints'; short-hand for 'BplusCore.Math.Vec{2, Int32}'.
 const LEVEL_SIZE_PIXELS = v2i(1600, 900)
 const BAT_SIZE = v2i(25, 200)
 const BALL_RADIUS = Float32(22)
@@ -51,7 +48,7 @@ function main()
         SETUP = begin
             # Define the ball and bat shaders.
             # Both are rendered with the standard quad from the "BasicGraphics" service.
-            shader_bat::Bplus.GL.Program = bp_glsl"""
+            shader_bat::BplusApp.GL.Program = bp_glsl"""
                 #START_VERTEX
                 uniform vec2 u_boundsMin, u_boundsMax;
                 in vec2 vIn_pos;
@@ -68,7 +65,7 @@ function main()
                     fOut_color = u_color;
                 }
             """
-            shader_ball::Bplus.GL.Program = bp_glsl"""
+            shader_ball::BplusApp.GL.Program = bp_glsl"""
                 #START_VERTEX
                 uniform vec2 u_boundsMin, u_boundsMax;
                 in vec2 vIn_pos;
@@ -248,7 +245,7 @@ function main()
                 set_uniform(shader, "u_boundsMin", min_pos_screen)
                 set_uniform(shader, "u_boundsMax", max_pos_screen)
                 set_uniform(shader, "u_color", color)
-                GL.render_mesh(LOOP.service_basic_graphics.quad, shader)
+                GL.render_mesh(LOOP.service_basic_graphics.screen_quad, shader)
             end
         end
 
