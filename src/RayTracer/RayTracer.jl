@@ -242,6 +242,19 @@ function main()
                     #TODO: Add a progress bar
                 end
             end
+
+            # If running single-threaded, warn the user.
+            if Threads.nthreads() == 1
+                gui_next_window_space(Box(
+                    min = v2f(0.1, 0.9),
+                    max = v2f(0.9, 0.8)
+                ))
+                gui_window("Warning Window", C_NULL, CImGui.LibCImGui.ImGuiWindowFlags_NoDecoration) do
+                    CImGui.Text("Julia is only running with 1 thread!\n" *
+                                "RayTracer is faster with more threads.\n" *
+                                "Pass '-t auto' when starting Julia to use all threads.")
+                end
+            end
         end
 
         TEARDOWN = begin

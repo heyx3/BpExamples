@@ -25,7 +25,8 @@ using Bplus; @using_bplus
 const update! = BplusCore.Utilities.update!
 
 
-# For performance, characters are limited to 1-byte ascii.
+# For performance, L-system characters are limited to 1-byte ascii.
+# 'String' probably isn't good for high-performance array work anyway
 const AsciiChar = UInt8
 const AsciiString = Vector{UInt8}
 
@@ -263,19 +264,19 @@ function main()
                                          max=Vec(0.3, 0.99)))
             gui_window("RenderEditor", C_NULL, STATIC_WINDOW_FLAGS) do
                 CImGui.Text("Sizing")
-                gui_with_indentation(gui_with_nested_id("Sizing") do
+                gui_with_indentation(() -> gui_with_nested_id("Sizing") do
                     @c CImGui.InputFloat("initial scale", &lsystem_render_settings.initial_scale)
                     @c CImGui.InputFloat("length step", &lsystem_render_settings.length_step_scale)
                     @c CImGui.InputFloat("thickess step", &lsystem_render_settings.thickness_step_scale)
                 end)
                 CImGui.Text("Rotation Steps")
-                gui_with_indentation(gui_with_nested_id("Rotation") do
+                gui_with_indentation(() -> gui_with_nested_id("Rotation") do
                     @c CImGui.SliderFloat("pitch", &lsystem_render_settings.pitch, 0, 360)
                     @c CImGui.SliderFloat("yaw", &lsystem_render_settings.yaw, 0, 360)
                     @c CImGui.SliderFloat("roll", &lsystem_render_settings.roll, 0, 360)
                 end)
                 CImGui.Text("Color")
-                gui_with_indentation(gui_with_nested_id("Color") do
+                gui_with_indentation(() -> gui_with_nested_id("Color") do
                     @c CImGui.ColorEdit3("initial", &lsystem_render_settings.initial_color)
                     h, s, l = lsystem_render_settings.hsl_shift
                     @c CImGui.SliderFloat("hue step", &h, -1, 1)
@@ -284,7 +285,7 @@ function main()
                     lsystem_render_settings.hsl_shift = v3f(h, s, l)
                 end)
                 CImGui.Text("Dropoff by depth")
-                gui_with_indentation(gui_with_nested_id("Dropoff") do
+                gui_with_indentation(() -> gui_with_nested_id("Dropoff") do
                     h, s, l = lsystem_render_settings.depth_shrink_hsl_shift
                     @c CImGui.SliderFloat("hue", &h, 0, 1)
                     @c CImGui.SliderFloat("saturation", &s, 0, 1)

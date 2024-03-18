@@ -25,13 +25,16 @@ const APP_OPTIONS = Pair{String, Base.Callable}[
     "Pong" => Pong.main,
     "Ray Tracer" => RayTracer.main,
     "Texture Generator" => TextureGen.main,
-    "L-System" => LSystem.main
+
+    # L-system is half-finished :(
+    # "L-System" => LSystem.main
 ]
 
 function main()
-    chosen_module = Ref{Union{Base.Callable, Val{:MENU}, Val{:QUIT}}}(Val(:MENU))
+    # Three states for this app: run a game, show the menu, or go quit.
+    current_state = Ref{Union{Base.Callable, Val{:MENU}, Val{:QUIT}}}(Val(:MENU))
     while true
-        if chosen_module[] isa Val{:MENU}
+        if current_state[] isa Val{:MENU}
             @game_loop begin
 
                 INIT(
@@ -43,7 +46,7 @@ function main()
 
                 LOOP = begin
                     if GLFW.WindowShouldClose(LOOP.context.window)
-                        chosen_module[] = Val(:QUIT)
+                        current_state[] = Val(:QUIT)
                         break
                     end
 
@@ -58,7 +61,7 @@ function main()
                             CImGui.Dummy(100, 0)
                             CImGui.SameLine()
                             if CImGui.Button(option, (200, 100))
-                                chosen_module[] = run_option
+                                current_state[] = run_option
                             end
                         end
                         CImGui.Dummy(0, 75)
@@ -66,20 +69,20 @@ function main()
                         CImGui.Dummy(125, 0)
                         CImGui.SameLine()
                         if CImGui.Button("Quit", (150, 75))
-                            chosen_module[] = Val(:QUIT)
+                            current_state[] = Val(:QUIT)
                         end
                     end
 
-                    if !isa(chosen_module[], Val{:MENU})
+                    if !isa(current_state[], Val{:MENU})
                         break
                     end
                 end
             end
-        elseif chosen_module[] isa Val{:QUIT}
+        elseif current_state[] isa Val{:QUIT}
             break
         else
-            chosen_module[]()
-            chosen_module[] = Val(:MENU)
+            current_state[]()
+            current_state[] = Val(:MENU)
         end
     end
 end

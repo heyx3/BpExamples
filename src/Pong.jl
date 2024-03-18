@@ -120,12 +120,14 @@ function main()
                                         # Controls visual effects, and animates towards 0.
 
             # Helper function for the loop.
+            # Returns the ball's new position and velocity.
             function respawn_ball()::Tuple{v2f, v2f}
                 return (
                     LEVEL_SIZE_PIXELS / 2,
                     BALL_INITIAL_SPEED_PIXELS_PER_SECOND *
-                    # Generate a direction vector from a random angle:
-                    let angle = deg2rad(rand(0:359))
+                    # Generate a direction vector from a random angle.
+                    # Prefer more horizontal angles.
+                    let angle = deg2rad(rand(-60:60) * rand([-1, 1]))
                         v2f(cos(angle), sin(angle))
                     end
                 )
@@ -138,7 +140,7 @@ function main()
             end
 
             # Continuously fade out the display for the last winner.
-            winner_display = lerp(winner_display, 0, 0.1)
+            winner_display = lerp(winner_display, 0, 0.03)
 
             # Process player inputs.
             p1_pos += BAT_SPEED_PIXELS_PER_SECOND * LOOP.delta_seconds *
@@ -252,7 +254,7 @@ function main()
         TEARDOWN = begin
             # Cleanup code goes here.
             # No manual cleanup is needed for Pong;
-            #    the two shaders will be destroyed when the Context is.
+            #    the two shaders will be destroyed with the Context.
         end
     end
 end
