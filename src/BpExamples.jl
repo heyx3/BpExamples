@@ -10,6 +10,9 @@ export RayTracer
 include("TextureGen.jl")
 export TextureGen
 
+include("ToySynth.jl")
+export ToySynth
+
 include("LSystem/LSystem.jl")
 export LSystem
 
@@ -25,6 +28,9 @@ const APP_OPTIONS = Pair{String, Base.Callable}[
     "Pong" => Pong.main,
     "Ray Tracer" => RayTracer.main,
     "Texture Generator" => TextureGen.main,
+    
+    # Toy Synth is half-finished :(
+    # "Toy Synthesizer" => ToySynth.main,
 
     # L-system is half-finished :(
     # "L-System" => LSystem.main
