@@ -81,10 +81,7 @@ PortAudio can resample it for us when writing to the speakers.
 "
 const SYNTH_SAMPLE_RATE = 44100
 
-"
-Named preset waveforms, each represented as a factory function
-  `(n_channels, sample_float_type) -> String`
-"
+"Named preset waveforms"
 const SYNTH_BUILTINS = Dict(
     "Pure" => """sin(
         pos * 440 * (2 * 3.1415927)
