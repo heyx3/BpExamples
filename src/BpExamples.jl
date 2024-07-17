@@ -28,9 +28,7 @@ const APP_OPTIONS = Pair{String, Base.Callable}[
     "Pong" => Pong.main,
     "Ray Tracer" => RayTracer.main,
     "Texture Generator" => TextureGen.main,
-    
-    # Toy Synth is half-finished :(
-    # "Toy Synthesizer" => ToySynth.main,
+    "Toy Synthesizer" => ToySynth.main,
 
     # L-system is half-finished :(
     # "L-System" => LSystem.main
