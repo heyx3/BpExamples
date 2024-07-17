@@ -17,11 +17,17 @@ Also shows how to do multithreading in Julia.
 
 ## TextureGen
 
-Allows you to generate textures using the Fields module, which provides a mini-language for procedural fields.
-
+Allows you to generate textures using the Fields module, which provides a mini-language for procedural functions.
 Also shows how to use the GUI module to make Dear ImGUI interfaces.
 
+## ToySynthesizer
+
+Allows you to generate audio using the Fields module, which provides a mini-language for procedural functions.
+Also shows how to use the GUI module to make Dear ImGUI interfaces, and how to use external Julia packages to play audio
+
 ## L-System
+
+**Work in progress, not done yet**
 
 Uses an L-system to generate a hierarchical tree-like structure.
 Showcases basic loading of assets from files, some interesting GUI stuff, and (WIP) how to make/use cubemaps.
