@@ -46,9 +46,9 @@ function generate_main_rays(viewport::Viewport, buffer::RayBuffer, pixel_jitter:
     #    and the camera sits behind that window casting one ray through each pixel.
     # The distance between the camera and window is what controls the FOV.
     pixel_basis = cam_basis(viewport.cam)
-    pixel_rightward::v3f = pixel_basis.right * viewport.cam.aspect_width_over_height
+    pixel_rightward::v3f = pixel_basis.right * viewport.cam.projection.aspect_width_over_height
     pixel_upward::v3f = pixel_basis.up
-    pixel_forward::v3f = pixel_basis.forward * deg2rad(viewport.cam.fov_degrees) # Not mathematically precise, but works fine
+    pixel_forward::v3f = pixel_basis.forward * deg2rad(viewport.cam.projection.vertical_fov_degrees) # Not mathematically precise, but works fine
 
     for pixel::v2i in 1:buffer.size
         uv::v2f = (pixel + pixel_jitter) / convert(v2f, buffer.size)

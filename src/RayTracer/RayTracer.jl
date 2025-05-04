@@ -99,14 +99,14 @@ function main()
                     pos = v3f(10, 10, 10),
                     forward = vnorm(v3f(-1, -1, -1)),
                     up = v3f(0, 0, 1),
-
-                    fov_degrees = 60,
-                    aspect_width_over_height = let s = get_window_size(LOOP.context.window)
-                        s.x / s.y
-                    end,
-
-                    # Near/far clipping plane isn't used for ray-tracing.
-                    clip_range = IntervalF(min=0.01, max=10.0)
+                    projection = PerspectiveProjection{Float32}(
+                        vertical_fov_degrees = 60,
+                        aspect_width_over_height = let s = get_window_size(LOOP.context.window)
+                            s.x / s.y
+                        end,
+                        # Near/far clipping plane isn't used for ray-tracing.
+                        clip_range = IntervalF(min=0.01, max=10.0)
+                    )
                 ),
                 Cam3D_Settings{Float32}(
                     move_speed = 5,
