@@ -1,7 +1,7 @@
 name = "BpExamples"
 uuid = "b4ec744f-a5a8-4e2e-9c6a-df2c9dd368fa"
 authors = ["William Manning <manning.w27@gmail.com>"]
-version = "0.2.0"
+version = "0.3.0"
 
 [deps]
 Assimp = "079381af-6941-5802-8ad5-fb13e7f1c93a"
@@ -26,4 +26,4 @@ Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-Bplus = "0.2.1"
+Bplus = "0.3.0"
