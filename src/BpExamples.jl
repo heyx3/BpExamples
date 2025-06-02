@@ -16,6 +16,9 @@ export ToySynth
 include("LSystem/LSystem.jl")
 export LSystem
 
+include("MarkovJunior/MarkovJunior.jl")
+export MarkovJunior
+
 
 # Display a main menu to choose from the above titles.
 
@@ -32,6 +35,9 @@ const APP_OPTIONS = Pair{String, Base.Callable}[
 
     # L-system is half-finished :(
     # "L-System" => LSystem.main
+
+    # Markov Junior is WIP
+    # "Markov Junior" => MarkovJunior.main
 ]
 
 function main()

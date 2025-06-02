@@ -191,8 +191,8 @@ function main()
             end
 
             # Render.
-            GL.clear_screen(vRGBAf(0, 0, 0, 0)) # Clear color
-            GL.clear_screen(@f32(1)) # Clear depth
+            Bplus.GL.clear_screen(vRGBAf(0, 0, 0, 0)) # Clear color
+            Bplus.GL.clear_screen(@f32(1)) # Clear depth
             # There are three objects to draw: P1, P2, and the ball.
             render_tasks::Tuple = (
                 # Each task is a tuple of (position, size, color, shader).
