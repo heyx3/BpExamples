@@ -3,25 +3,25 @@ Rendering a 2D markov-junior scene is easy: copy the cell colors into an array.
 You may pass a null ref the first time you call this.
 This function also takes a reusable buffer to eliminate heap allocations.
 "
-function render_markov_2d(state::State{2}, null_color::v3f,
+function render_markov_2d(grid::CellGrid{2}, null_color::v3f,
                           buffer::Ref{Matrix{v3f}}, output::Ref{Texture})
     # Resize/initialize the output texture if necessary.
-    if !isassigned(output) || (output[].size.xy != vsize(state.grid))
+    if !isassigned(output) || (output[].size.xy != vsize(grid))
         output[] = Texture(
             SimpleFormat(FormatTypes.normalized_uint,
                          SimpleFormatComponents.RGB,
                          SimpleFormatBitDepths.B8),
-            vsize(state.grid)::Vec2
+            vsize(grid)::Vec2
         )
     end
 
     # Build the texture's array.
-    if !isassigned(buffer) || (vsize(buffer) != vsize(state.grid))
-        buffer[] = fill(zero(v3f), size(state.grid))
+    if !isassigned(buffer) || (vsize(buffer) != vsize(grid))
+        buffer[] = fill(zero(v3f), size(grid))
     end
     bufferMemory::Matrix{v3f} = buffer[]
     for pixel::v2i in one(v2i):Bplus.vsize(bufferMemory)
-        cell::UInt8 = state.grid[pixel]
+        cell::UInt8 = grid[pixel]
         color::v3f = if cell == CELL_CODE_INVALID
             null_color
         else
@@ -65,8 +65,8 @@ function MarkovRendererResources()
 end
 
 
-struct MarkovRenderer3D{TState <: State{3}}
-    state::TState
+struct MarkovRenderer3D{TGrid <: CellGrid{3}}
+    grid::TGrid
     state_tex::Bplus.GL.Texture
 
     cam::Cam3D{Float32}
@@ -75,12 +75,12 @@ struct MarkovRenderer3D{TState <: State{3}}
     output_target::Bplus.GL.Target
 end
 
-function MarkovRenderer3D(initial_state::State{3}, resolution::v2u)
-    grid_size = vsize(initial_state.grid)
+function MarkovRenderer3D(grid::CellGrid{3}, resolution::v2u)
+    grid_size = vsize(grid)
     output_color = Texture(SpecialFormats.rgb_tiny_ufloats, resolution)
     cam_back_up_scale = @f32(2)
-    return MarkovRenderer3D{typeof(initial_state)}(
-        initial_state,
+    return MarkovRenderer3D{typeof(grid)}(
+        grid,
         Texture(
             SimpleFormat(
                 FormatTypes.uint,
@@ -119,8 +119,8 @@ Base.close(mr::MarkovRenderer3D) = close.((
     mr.output_target
 ))
 
-function render_markov_3d(state::State{3}, renderer::MarkovRenderer3D, assets::MarkovRendererResources)
-    set_tex_color(renderer.state_tex, state.grid)
+function render_markov_3d(grid::CellGrid{3}, renderer::MarkovRenderer3D, assets::MarkovRendererResources)
+    set_tex_color(renderer.state_tex, grid)
 
     target_activate(renderer.output_target)
         clear_screen(vRGBAf(0.6, 0.7, 1.0, 1.0))
@@ -140,7 +140,7 @@ function render_markov_3d(state::State{3}, renderer::MarkovRenderer3D, assets::M
                 service_BasicGraphics().empty_mesh,
                 assets.program_render_cube,
                 shape = PrimitiveTypes.point,
-                elements = IntervalU(min=1, size=prod(size(state.grid)))
+                elements = IntervalU(min=1, size=prod(size(grid)))
             )
         view_deactivate(renderer.state_tex)
 

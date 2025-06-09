@@ -70,7 +70,7 @@ function main()
 
                             CImGui.Dummy(100, 0)
                             CImGui.SameLine()
-                            if CImGui.Button(option, (200, 100))
+                            if CImGui.Button(option, (200, 65))
                                 current_state[] = run_option
                             end
                         end
