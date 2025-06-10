@@ -20,7 +20,9 @@ function main()::Int
     grid::CellGrid{2} = fill(CELL_CODE_BY_CHAR['b'], (10, 10))
     grid[5, 5] = CELL_CODE_BY_CHAR['w']
 
-    rng = PRNG(rand(UInt32))
+    seed = rand(UInt32)
+    println("Seed: ", seed)
+    rng = PRNG(seed)
 
     sequence = Sequence_DoAll([
         CellRule("bbw", "bww")

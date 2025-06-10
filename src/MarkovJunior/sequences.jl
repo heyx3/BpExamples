@@ -47,7 +47,9 @@ function execute_sequence(d::Sequence_DoN, grid::CellGrid{N}, rng::PRNG,
         )
         rule = d.rules[application.rule_idx]
 
-        rule_execute!(grid, rule, at)
+        @markovjunior_assert rule_applies(grid, rule, application.at) application.at
+
+        rule_execute!(grid, rule, application.at)
         update_cache!(cache, grid, application.rule_idx, application.at)
 
         return (next_i + 1, cache)
@@ -103,11 +105,14 @@ function execute_sequence(d::Sequence_DoAll, grid::CellGrid{N}, rng::PRNG, cache
     if n_options < 1
         return nothing
     else
+        application_i = rand(rng, 1:n_options)
         application = get_cached_rule_application(
             cache,
-            rand(rng, 1:n_options)
+            application_i
         )
         rule = d.rules[application.rule_idx]
+
+        @markovjunior_assert rule_applies(grid, rule, application.at) application.at
 
         rule_execute!(grid, rule, application.at)
         update_cache!(cache, grid, application.rule_idx, application.at)

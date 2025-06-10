@@ -164,15 +164,21 @@ function update_cache!(rc::RuleCache{N}, grid::CellGrid{N},
         used_to_be_legal::Bool = application_key in rc.legal_applications[rule_idx]
         is_legal::Bool = rule_applies(grid, rc.rules[rule_idx], at)
 
+        # There seems to be some kind of bug in Julia or OrderedCollections,
+        #    where changes to the OrderedSet's aren't realized until their elements are enumerated.
+        fix_ordered_sets() = @noinline for a in rc.legal_applications; for b in a end end
+
         # Became legal?
         if !used_to_be_legal && is_legal
             push!(rc.legal_applications[rule_idx], application_key)
+            fix_ordered_sets()
             for_each_cell_in_line(at) do idx, cell::CellIdx{N}
                 rc.count_per_cell[cell] += 1
             end
         # Became illegal?
         elseif used_to_be_legal && !is_legal
             delete!(rc.legal_applications[rule_idx], application_key)
+            fix_ordered_sets()
             for_each_cell_in_line(at) do idx, cell::CellIdx{N}
                 rc.count_per_cell[cell] -= 1
             end
