@@ -2,11 +2,12 @@
 module MarkovJunior
 
 using Random, Setfield
-using OrderedCollections
+using OrderedCollections, GLFW
 using Bplus; @using_bplus
 
 
 Bplus.@make_toggleable_asserts markovjunior_
+const SKIP_CACHE = false # Useful for debugging the cache
 
 include("cells.jl")
 include("rules.jl")
@@ -19,30 +20,23 @@ function main()::Int
     grid::CellGrid{2} = fill(CELL_CODE_BY_CHAR['b'], (10, 10))
     grid[5, 5] = CELL_CODE_BY_CHAR['w']
 
-    rng = PRNG(0x152433)
+    rng = PRNG(rand(UInt32))
 
     sequence = Sequence_DoAll([
         CellRule("bbw", "bww")
     ])
 
-    seq_state = execute_sequence(sequence, grid, rng, start_sequence(sequence, grid, rng))
-    i = 0
-    while (i < 20) && exists(seq_state)
-        i += 1
-        seq_state = execute_sequence(sequence, grid, rng, seq_state)
-    end
-
     @game_loop begin
         # Bplus.GL.Context constructor parameters:
-        INIT(convert(v2i, vsize(grid) * 20), "Markov Junior Playground",
+        INIT(v2i(200, 200), "Markov Junior Playground",
              vsync=VsyncModes.on)
 
         # Initialization:
         SETUP = begin
-            # Render the grid.
             grid_tex_ref = Ref{Texture}()
-            render_markov_2d(grid, v3f(0.4, 0, 0.4), Ref{Matrix{v3f}}(), grid_tex_ref)
-            grid_tex = grid_tex_ref[]
+            grid_pixels_buffer = Ref{Matrix{v3f}}()
+
+            sequence_state = execute_sequence(sequence, grid, rng, start_sequence(sequence, grid, rng))
         end
 
         # Core loop:
@@ -51,8 +45,16 @@ function main()::Int
                 break # Cleanly ends the game loop
             end
 
+            # Tick the algorithm.
+            if exists(sequence_state)
+                sequence_state = execute_sequence(sequence, grid, rng, sequence_state)
+            end
+            render_markov_2d(grid, v3f(0.4, 0, 0.4), grid_pixels_buffer, grid_tex_ref)
+
+            # Render the algorithm state.
+            clear_screen(vRGBAf(1, 0, 1, 1))
             clear_screen(@f32(1)) # Depth
-            simple_blit(grid_tex, output_curve=@f32(2.2))
+            simple_blit(grid_tex_ref[], output_curve=@f32(2.2))
         end
     end
 

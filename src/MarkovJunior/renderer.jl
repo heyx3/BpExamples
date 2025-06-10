@@ -11,27 +11,30 @@ function render_markov_2d(grid::CellGrid{2}, null_color::v3f,
             SimpleFormat(FormatTypes.normalized_uint,
                          SimpleFormatComponents.RGB,
                          SimpleFormatBitDepths.B8),
-            vsize(grid)::Vec2
+            vsize(grid)::Vec2,
+            sampler = Bplus.GL.TexSampler{2}(
+                pixel_filter = PixelFilters.rough
+            )
         )
     end
 
     # Build the texture's array.
-    if !isassigned(buffer) || (vsize(buffer) != vsize(grid))
+    if !isassigned(buffer) || (vsize(buffer[]) != vsize(grid))
         buffer[] = fill(zero(v3f), size(grid))
     end
-    bufferMemory::Matrix{v3f} = buffer[]
-    for pixel::v2i in one(v2i):Bplus.vsize(bufferMemory)
+    buffer_memory::Matrix{v3f} = buffer[]
+    for pixel::v2i in one(v2i):vsize(buffer_memory)
         cell::UInt8 = grid[pixel]
         color::v3f = if cell == CELL_CODE_INVALID
             null_color
         else
-            CELL_TYPES[cell].color
+            CELL_TYPES[cell + 1].color
         end
-        bufferMemory[pixel] = color
+        buffer_memory[pixel] = color
     end
 
     # Upload.
-    Bplus.GL.set_tex_color(output[], bufferMemory)
+    Bplus.GL.set_tex_color(output[], buffer_memory)
 end
 
 

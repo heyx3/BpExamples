@@ -75,14 +75,19 @@ struct CellLine{N}
     movement::GridDir
     length::Int32
 end
+function Base.print(io::IO, l::CellLine)
+    p_start = l.start_cell
+    p_end = p_start
+    @set! p_end[l.movement.axis] += l.movement.dir * (l.length - 1)
+    print(io, "<", p_start, " to ", p_end, ">")
+end
 
 "Walks through every cell in a small contiguous line"
 function for_each_cell_in_line(toDo, line::CellLine{N})::Nothing where {N}
     for iz in zero(Int32):(line.length - one(Int32))
-        cell = line.start_cell + CellIdx{N}(
-            j -> (j == line.movement.axis) ? (iz * line.movement.dir) : zero(Int32)
-        )
-        toDo(i, cell)
+        cell = line.start_cell
+        @set! cell[line.movement.axis] += (iz * line.movement.dir)
+        toDo(iz + one(Int32), cell)
     end
     return nothing
 end
@@ -90,7 +95,7 @@ end
 function cell_line_aabb(line::CellLine{N})::Box{N, Int32} where {N}
     start_pos = line.start_cell
     end_pos = start_pos
-    end_pos[line.movement.axis] += line.movement.dir * (line.length - 1)
+    @set! end_pos[line.movement.axis] += line.movement.dir * (line.length - 1)
     (start_pos, end_pos) = Bplus.Math.minmax(start_pos, end_pos)
     return Box{N, Int32}(
         min=start_pos,

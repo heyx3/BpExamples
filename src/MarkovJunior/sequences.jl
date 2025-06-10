@@ -21,6 +21,22 @@ start_sequence(d::Sequence_DoN, grid::CellGrid{N}, rng::PRNG) where {N} = (1, Ru
 function execute_sequence(d::Sequence_DoN, grid::CellGrid{N}, rng::PRNG,
                           (next_i, cache)::Tuple{Int, RuleCache{N}}
                          ) where {N}
+    if SKIP_CACHE
+        if (next_i > d.count)
+            return nothing
+        end
+        options = Vector{Pair{Int32, CellLine{N}}}()
+        find_rule_matches(grid, d.rules) do (i, c)
+            push!(options, i => c)
+        end
+        if isempty(options)
+            return nothing
+        end
+        option = rand(rng, options)
+        rule_execute!(grid, d.rules[option[1]], option[2])
+        return (next_i + 1, cache)
+    end
+
     n_options = n_cached_rule_applications(cache)
     if (n_options < 1) || (next_i > d.count)
         return nothing
@@ -70,6 +86,19 @@ struct Sequence_DoAll <: AbstractSequence
 end
 start_sequence(d::Sequence_DoAll, grid::CellGrid{N}, rng::PRNG) where {N} = RuleCache(grid, d.rules)
 function execute_sequence(d::Sequence_DoAll, grid::CellGrid{N}, rng::PRNG, cache::RuleCache{N}) where {N}
+    if SKIP_CACHE
+        options = Vector{Pair{Int32, CellLine{N}}}()
+        find_rule_matches(grid, d.rules) do i, c
+            push!(options, i => c)
+        end
+        if isempty(options)
+            return nothing
+        end
+        option = rand(rng, options)
+        rule_execute!(grid, d.rules[option[1]], option[2])
+        return cache
+    end
+
     n_options = n_cached_rule_applications(cache)
     if n_options < 1
         return nothing
