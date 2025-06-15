@@ -139,7 +139,7 @@ function execute_sequence(d::Sequence_Ordered, grid::CellGrid{N}, rng::PRNG,
     next_from_element = execute_sequence(d.list[current_i], grid, rng, element_state)
     if exists(next_from_element)
         return (current_i, next_from_element)
-    elseif current_i < length(list)
+    elseif current_i < length(d.list)
         return execute_sequence(d, grid, rng,
                                 (current_i + 1,
                                  start_sequence(d.list[current_i + 1], grid, rng)))

@@ -1,7 +1,7 @@
 "Based on the amazing Github repo: [https://github.com/mxgmn/MarkovJunior](mxgmn/MarkovJunior)"
 module MarkovJunior
 
-using Random, Setfield
+using Random, Setfield, Profile
 using OrderedCollections, GLFW
 using Bplus; @using_bplus
 
@@ -15,30 +15,42 @@ include("sequences.jl")
 include("renderer.jl")
 
 
-function main()::Int
+const DEFAULT_SEQUENCE = Sequence_Ordered([
+    Sequence_DoN([
+        CellRule("b", "w")
+    ], 1),
+    Sequence_DoAll([
+        CellRule("bbw", "wEw")
+    ]),
+    Sequence_DoAll([
+        CellRule("E", "w")
+    ])
+])
 
-    grid::CellGrid{2} = fill(CELL_CODE_BY_CHAR['b'], (10, 10))
-    grid[5, 5] = CELL_CODE_BY_CHAR['w']
-
-    seed = rand(UInt32)
+function main(; resolution::v2i = v2i(30, 30),
+                sequence::AbstractSequence = DEFAULT_SEQUENCE,
+                seed = rand(UInt32),
+                profile::Bool = false
+             )::Int
     println("Seed: ", seed)
     rng = PRNG(seed)
 
-    sequence = Sequence_DoAll([
-        CellRule("bbw", "bww")
-    ])
+    grid = fill(CELL_CODE_BY_CHAR['b'], resolution.data)
 
     @game_loop begin
         # Bplus.GL.Context constructor parameters:
-        INIT(v2i(200, 200), "Markov Junior Playground",
-             vsync=VsyncModes.on)
+        INIT(v2i(400, 400), "Markov Junior Playground",
+             vsync=VsyncModes.off)
 
         # Initialization:
         SETUP = begin
+            profile && Profile.start_timer()
+
             grid_tex_ref = Ref{Texture}()
             grid_pixels_buffer = Ref{Matrix{v3f}}()
 
             sequence_state = execute_sequence(sequence, grid, rng, start_sequence(sequence, grid, rng))
+            LOOP.max_fps = nothing
         end
 
         # Core loop:
@@ -58,9 +70,29 @@ function main()::Int
             clear_screen(@f32(1)) # Depth
             simple_blit(grid_tex_ref[], output_curve=@f32(2.2))
         end
+
+        TEARDOWN = begin
+            profile && Profile.stop_timer()
+        end
     end
 
     return 0
 end
+
+# Precompile code using a basic sequence.
+# The sequence logic is super type-unstable, so this is very important to performance.
+function run_game(; sequence::AbstractSequence = DEFAULT_SEQUENCE,
+                    resolution::Int = 50)
+    grid = fill(CELL_CODE_BY_CHAR['b'], (resolution, resolution))
+    rng = PRNG(0x23423411)
+
+    seq_state = start_sequence(sequence, grid, rng)
+    while exists(seq_state)
+        seq_state = execute_sequence(sequence, grid, rng, seq_state)
+    end
+
+    return grid
+end
+run_game()
 
 end

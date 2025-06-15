@@ -15,7 +15,13 @@ struct CellRule
             Optional{UInt8},
             Iterators.map(list) do i
                 if i isa AbstractChar
-                    CELL_CODE_BY_CHAR[convert(Char, i)]
+                    c = convert(Char, i)
+                    if c in keys(CELL_CODE_BY_CHAR)
+                        CELL_CODE_BY_CHAR[convert(Char, i)]
+                    else
+                        @warn "Unsupported rule char '$c', expected one of $(list(keys(CELL_CODE_BY_CHAR)))! Falling back to magenta ('M')"
+                        CELL_CODE_BY_CHAR['M']
+                    end
                 elseif i isa Integer
                     convert(UInt8, i)
                 elseif isnothing(i)
@@ -164,21 +170,15 @@ function update_cache!(rc::RuleCache{N}, grid::CellGrid{N},
         used_to_be_legal::Bool = application_key in rc.legal_applications[rule_idx]
         is_legal::Bool = rule_applies(grid, rc.rules[rule_idx], at)
 
-        # There seems to be some kind of bug in Julia or OrderedCollections,
-        #    where changes to the OrderedSet's aren't realized until their elements are enumerated.
-        fix_ordered_sets() = @noinline for a in rc.legal_applications; for b in a end end
-
         # Became legal?
         if !used_to_be_legal && is_legal
             push!(rc.legal_applications[rule_idx], application_key)
-            fix_ordered_sets()
             for_each_cell_in_line(at) do idx, cell::CellIdx{N}
                 rc.count_per_cell[cell] += 1
             end
         # Became illegal?
         elseif used_to_be_legal && !is_legal
             delete!(rc.legal_applications[rule_idx], application_key)
-            fix_ordered_sets()
             for_each_cell_in_line(at) do idx, cell::CellIdx{N}
                 rc.count_per_cell[cell] -= 1
             end
@@ -294,7 +294,8 @@ function get_cached_rule_application(c::RuleCache{N}, i::Int)::RuleApplication{N
 
     # Per https://github.com/JuliaCollections/OrderedCollections.jl/issues/93,
     #   there is not yet an official way to get an element from OrderedSet by its index,
-    #   but we can expect indexing into 's.keys' to always work.
+    #    but this should always work.
+    iterate(c.legal_applications[rule_idx]) # Make sure cached ops are all applied
     (cell_start, movement) = c.legal_applications[rule_idx].dict.keys[relative_i]
     return RuleApplication{N}(rule_idx, CellLine{N}(cell_start, movement, c.rules[rule_idx].length))
 end
