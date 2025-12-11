@@ -1,9 +1,15 @@
-"An input (matching some cell line in a grid), and an output (replacing that line)"
+"
+An input (matching some cell line in a grid), and an output (replacing that line).
+Rules are one-dimensional, and can be applied in either direction along any axis.
+
+Null entries in the input/output are wildcards --
+    wild inputs don't care about that cell, and wild outputs leave that cell unchanged.
+
+On construction you can specify input and output as strings, or arrays of char/int/Nothing.
+"
 struct CellRule
     length::Int32
-    # A 'nothing' entry means anything can be in that cell.
     input::Vector{Optional{UInt8}}
-    # A 'nothing' entry means that cell is unchanged.
     output::Vector{Optional{UInt8}}
 
     function CellRule(input::Union{AbstractVector, AbstractString},
@@ -62,7 +68,12 @@ function rule_execute!(grid::CellGrid{N},
     return nothing
 end
 
-"Finds matches of the given rule in the given grid, and sends them into your lambda"
+"
+Finds all matches of the given rule in the given grid, sending them into your lambda.
+
+This is mainly for initialization and debugging;
+    you should use a `RuleCache` for better performance across multiple rule applications.
+"
 function find_rule_matches(process_rule, # CellLine{N} -> Nothing
                            grid::CellGrid{N},
                            rule::CellRule
@@ -92,6 +103,8 @@ Find matches of the given rules in the given grid, and send them into your lambd
 Rules are ordered by your own rules iterator,
     e.g. the first batch of outputs are all for your first rule.
 
+This is mainly for initialization and debugging;
+    you should use a `RuleCache` for better performance across multiple rule applications.
 "
 function find_rule_matches(process_rule, # (rule_idx::Int32, CellLine{N}) -> Nothing
                            grid::CellGrid{N},
@@ -107,7 +120,6 @@ end
 
 "
 Stored lookup tables indicating which rules are currently applicable in which cells of some grid.
-
 You must always call `update_cache!()` after updating the grid.
 "
 struct RuleCache{N}
@@ -139,9 +151,7 @@ end
 
 "
 Updates the rule cache after the given rule application.
-
-Assumes no external changes have been made to the grid
-   (in other words, all grid changes must immediately call `update_cache!()` afterwards`)
+This must always be called immediately after any changes to the grid.
 "
 function update_cache!(rc::RuleCache{N}, grid::CellGrid{N},
                        executed_rule_idx::Int32,
@@ -254,7 +264,7 @@ end
 n_cached_rule_applications(c::RuleCache) = Int32(sum(Iterators.map(length, c.legal_applications)))
 
 
-"An entry in the rule cache, a.k.a. a rule applied to a specific line of cells"
+"An entry in the rule cache, representing a particular rule applied to particular cells"
 struct RuleApplication{N}
     rule_idx::Int32
     at::CellLine{N}
@@ -292,10 +302,25 @@ function get_cached_rule_application(c::RuleCache{N}, i::Int)::RuleApplication{N
     @bp_check(rule_idx <= length(c.rules),
               "Index ", i, " out of range 1:", n_cached_rule_applications(c))
 
-    # Per https://github.com/JuliaCollections/OrderedCollections.jl/issues/93,
-    #   there is not yet an official way to get an element from OrderedSet by its index,
-    #    but this should always work.
-    iterate(c.legal_applications[rule_idx]) # Make sure cached ops are all applied
-    (cell_start, movement) = c.legal_applications[rule_idx].dict.keys[relative_i]
+    (cell_start, movement) = ordered_collection_get_idx(c.legal_applications[rule_idx], relative_i)
     return RuleApplication{N}(rule_idx, CellLine{N}(cell_start, movement, c.rules[rule_idx].length))
+end
+
+"
+Gets the set of all possible applications, for the first rule which has at least one.
+Also returns that rule, by index.
+
+**The returned set is read-only!**
+
+If no options are available, returns nothing.
+"
+function get_first_nonempty_cached_rule_application_set(
+             c::RuleCache{N}
+         )::Optional{Tuple{Int32, OrderedSet{Tuple{CellIdx{N}, GridDir}}}} where {N}
+    for rule_idx in 1:length(c.rules)
+        if !isempty(c.legal_applications[rule_idx])
+            return (convert(Int32, rule_idx), c.legal_applications[rule_idx])
+        end
+    end
+    return nothing
 end
