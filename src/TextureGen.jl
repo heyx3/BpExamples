@@ -65,9 +65,34 @@ function main()
             current_field::AbstractField{2, 4, Float32} = ConstantField{2}(vRGBAf(0, 0, 0, 1))
             field_error_msg::Optional{String} = nothing
 
-            function standardize_field(f::AbstractField{2})::AbstractField{2, 4, Float32}
-                @nospecialize f # The type of 'f' isn't known by the caller anyway,
-                                #    and there are **many** possible types of fields.
+            # Takes a user's field and converts it to a canonical representation:
+            #    two inputs (UV), and four outputs (RGBA).
+            function standardize_field(f)::AbstractField{2, 4, Float32}
+                # The math expressions within a field are specified at compile-time,
+                #    meaning every possible field expression is a different type.
+                # By default, Julia will JIT-compile a new overload of this function for each type,
+                #    which is horrifically inefficient!
+                @nospecialize f
+
+                # Cast the type to an AbstractField.
+                # If it's a constant value we can convert it for the user.
+                if f isa Real
+                    f = ConstantField{2}(Vec(f))
+                elseif f isa Vec
+                    f = ConstantField{2}(f)
+                # If it's anything else, give up.
+                elseif !isa(f, AbstractField)
+                    error("Expected a field (subtype of AbstractField), but got a ", typeof(f))
+                end
+
+                # We expect the field to have two-dimensional input.
+                # Ideally we could handle lower- and higher-dimensional ones
+                #    by automatically changing the input dimensions,
+                #    but that functionality doesn't exist yet for Fields (see Github issue #12).
+                if field_input_size(f) != 2
+                    error("Expected the field to have 2D input, but it's ", field_input_size(f) , "D")
+                end
+
                 # Cast to Float32.
                 if field_component_type(f) != Float32
                     f = ConversionField(f, Float32)
@@ -93,6 +118,8 @@ function main()
 
                 return f
             end
+
+            # Parses the user's field code into an AbstractField.
             function compile_field()
                 current_dsl = string(dsl_gui)
 
@@ -102,23 +129,33 @@ function main()
                     ast = Meta.parse(current_dsl)
                 catch e
                     field_error_msg = "Syntax error: $(sprint(showerror, e))"
+                    @error field_error_msg
                     return
                 end
                 if !Base.is_expr(ast, :macrocall) || (ast.args[1] != Symbol("@field"))
                     field_error_msg = "Field should be defined using the @field macro"
+                    @error field_error_msg
                     return
                 end
 
-                # Convert that syntax into a Field.
+                # Convert that syntax into a Field object.
+                # We are expecting some Julia code that invokes the `@field` macro,
+                #    but in theory any Julia code could have been entered, such as manual field construction.
+                #TODO: For safety, only allow `@field` invocations.
                 local field
                 try
                     field = BplusTools.Fields.eval(ast)
+                    field = standardize_field(field)
+                    # Double-check the field executes without error.
+                    get_field(field, v2f(0.5, 0.5), prepare_field(field))
+                    # Didn't throw an error; commit the changes
+                    current_field = field
                 catch e
-                    field_error_msg = "Unable to compile your field: $(sprint(showerror, e))"
+                    field_error_msg = "Unable to compile/execute your field: $(sprint(showerror, e))"
+                    @error field_error_msg
                     return
                 end
 
-                current_field = standardize_field(field) # VSCode thinks this is a new variable, but it's not
                 field_error_msg = nothing
             end
 

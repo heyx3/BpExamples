@@ -84,9 +84,8 @@ function get_material_bucket(buffer::RayBuffer, m::AbstractMaterial)::Vector{UIn
         return bucket
     end
 end
-function gather_material_buckets(buffer::RayBuffer, materials)
-    @nospecialize materials
-    for material in materials
+function gather_material_buckets(buffer::RayBuffer, materials_type_stable::Tuple{Vararg{AbstractMaterial}})
+    function process_material(material)
         bucket = get_material_bucket(buffer, material)
         for i in UInt32(1) : UInt32(buffer.count)
             if exists(buffer.hits[i]) && (buffer.hits[i].material == material)
@@ -94,6 +93,8 @@ function gather_material_buckets(buffer::RayBuffer, materials)
             end
         end
     end
+    process_material.(materials_type_stable)
+    return nothing
 end
 "Releases all buckets back into the memory pool"
 function release_material_buckets(buffer::RayBuffer)
@@ -102,6 +103,7 @@ function release_material_buckets(buffer::RayBuffer)
         push!(buffer.material_bucket_pool, bucket)
     end
     empty!(buffer.material_buckets)
+    return nothing
 end
 
 "Handles any rays which will not be processed due to hitting the limit on bounces"
@@ -119,12 +121,35 @@ end
 function render_pass(world::World, viewport::Viewport,
                      buffer::RayBuffer,
                      hitables_precomputed::Vector,
-                     params::RayParams,
-                     n_bounces::Int,
-                     pixel_jitter::v2f)
+                     params::RayParams, n_bounces::Int, pixel_jitter::v2f,
+                     acknowledge_progress_t::Base.Callable = (f::Float32 -> nothing))
+    all_materials::Vector{AbstractMaterial} = unique(kvp[2] for kvp in world.objects)
+    # For type-stability, gather the unique material list into a tuple.
+    # Then we have to enter a lambda which Julia can compile for our specific set of materials.
+    # To reduce the number of compiled variants, sort the materials first.
+    sort!(all_materials, by=hash)
+    _materials_type_stable = Tuple(all_materials)
+    return ((materials_type_stable) -> begin # Everything below has type-stable materials now!
+
+    # Compute progress rates.
+    prog_main_rays_generate = @f32(0.05)
+    prog_single_bounce = (@f32(1) - prog_main_rays_generate) / n_bounces
+    prog_bounce_hits = prog_single_bounce * @f32(0.7)
+    prog_bounce_batched = prog_single_bounce * @f32(0.1)
+    prog_bounce_rendered = prog_single_bounce * @f32(0.2)
+    prog_bounce_rendered_single_mat = prog_bounce_rendered / @f32(length(materials_type_stable))
+
+    prog_current = @f32(0.0)
+    acknowledge_progress_t(prog_current)
+    function advance_progress(by::Float32)
+        prog_current += by
+        acknowledge_progress_t(clamp(prog_current, zero(Float32), one(Float32)))
+    end
+
     fill!(buffer.color_left, one(vRGBf)) # Initially un-tinted; all light can be received.
                                          # As the rays bounce off surfaces, they get tinted.
     generate_main_rays(viewport, buffer, pixel_jitter)
+    advance_progress(prog_main_rays_generate)
 
     for bounce_i::Int in 1:n_bounces
         # Find the first object hit for each ray/pixel.
@@ -132,13 +157,17 @@ function render_pass(world::World, viewport::Viewport,
         for ((hitable, material), precomputation) in zip(world.objects, hitables_precomputed)
             get_first_hit(hitable, material, precomputation, buffer, params)
         end
+        advance_progress(prog_bounce_hits)
+
+        # Collect pixels into buckets by their material.
+        release_material_buckets(buffer)
+        gather_material_buckets(buffer, materials_type_stable)
+        advance_progress(prog_bounce_batched)
 
         # Render pixels that hit materials.
-        # Start by collecting pixels into buckets by their material.
-        release_material_buckets(buffer)
-        gather_material_buckets(buffer, unique(kvp[2] for kvp in world.objects))
         for (material, bucket) in buffer.material_buckets
             apply_material(material, world, buffer, bucket)
+            advance_progress(prog_bounce_rendered_single_mat)
         end
 
         # If there are no rays left to simulate, exit early.
@@ -155,4 +184,6 @@ function render_pass(world::World, viewport::Viewport,
     get_sky_color(world.sky, world, buffer)
 
     return nothing # prevents the last expression from leaking out as a return value
+
+    end)(_materials_type_stable) # Close and invoke the lambda that introduces type-stability
 end

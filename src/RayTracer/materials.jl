@@ -79,8 +79,9 @@ sanitize_ray(r::RT_Ray) = RT_Ray(r.start + (r.dir * 0.001), r.dir)
 "Schlick's Fresnel approximation"
 function schlick_fresnel(cosine::Float32, ior::Float32)
     ONE = Float32(1)
+    FIVE = Float32(5)
     r0 = square((ONE - ior) / (ONE + ior))
-    return r0 + ((ONE - r0) * ((ONE - cosine) ^ @f32(5)))
+    return r0 + ((ONE - r0) * ((ONE - cosine) ^ FIVE))
 end
 
 
@@ -142,17 +143,18 @@ function apply_material(m::M_Dielectric,
                         world::World,
                         rng::ConstPRNG
                        )::Tuple{v3f, Optional{RT_Ray}}
+    cos_theta::Float32 = min(@f32(1), vdot(-r.dir, hit.normal)) # Explicitly capped at 1 because
+                                                                #   float error putting it above 1 would screw up math below
+                                                                
     # If we're inside the surface peeking out, flip the IoR.
-    cos_theta::Float32 = min(@f32(1), vdot(-r.dir, hit.normal)) # Capped at 1 because float error would screw it up otherwise
     ior::Float32 = (cos_theta < 0) ?
                        (@f32(1) / m.index_of_refraction) :
                        m.index_of_refraction
 
     # In certain cases refraction is impossible.
+    # Otherwise, refraction chance is based on incident angle
     sin_theta::Float32 = sqrt(@f32(1) - (cos_theta * cos_theta))
     can_refract::Bool = (ior * sin_theta) <= @f32(1)
-
-    # If refraction is possible, it's still not certain.
     (reflect_chance::Float32, rng) = rand(rng, Float32)
     should_refract::Bool = can_refract &&
                            (schlick_fresnel(cos_theta, ior) <= reflect_chance)

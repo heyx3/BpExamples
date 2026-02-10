@@ -228,28 +228,28 @@ function main()
             # We can use the 'SimpleGraphics' service to draw the texture to the screen;
             #    no custom shader necessary.
             if isassigned(newest_texture) # Don't draw if we haven't even produced a frame yet
-                simple_blit(newest_texture[])
+                Bplus.BplusApp.simple_blit(newest_texture[])
             end
 
             # If the full render is happening, display a notification window.
             if @atomic renderer.doing_full_render
-                gui_next_window_space(Box(
+                Bplus.GUI.gui_next_window_space(Box(
                     min = v2f(0.1, 0.02),
                     max = v2f(0.9, 0.1)
                 ))
-                gui_window("Message Window", C_NULL, CImGui.LibCImGui.ImGuiWindowFlags_NoDecoration) do
+                Bplus.GUI.gui_window("Message Window", C_NULL, CImGui.LibCImGui.ImGuiWindowFlags_NoDecoration) do
                     CImGui.Text("Rendering high-quality view...")
-                    #TODO: Add a progress bar
+                    CImGui.ProgressBar(@atomic(renderer.render_progress), (-1, 0), "Progress")
                 end
             end
 
             # If running single-threaded, warn the user.
             if Threads.nthreads() == 1
-                gui_next_window_space(Box(
+                Bplus.GUI.gui_next_window_space(Box(
                     min = v2f(0.1, 0.9),
                     max = v2f(0.9, 0.8)
                 ))
-                gui_window("Warning Window", C_NULL, CImGui.LibCImGui.ImGuiWindowFlags_NoDecoration) do
+                Bplus.GUI.gui_window("Warning Window", C_NULL, CImGui.LibCImGui.ImGuiWindowFlags_NoDecoration) do
                     CImGui.Text("Julia is only running with 1 thread!\n" *
                                 "RayTracer is faster with more threads.\n" *
                                 "Pass '-t auto' when starting Julia to use all threads.")

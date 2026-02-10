@@ -28,6 +28,7 @@ mutable struct RenderTask
     viewport::Viewport
     @atomic kill_task::Bool # Don't set this directly; call 'close()' instead.
     @atomic doing_full_render::Bool # Render task sets this when starting the big render
+    @atomic render_progress::Float32 # The 0-1 progress of the current render job
 
     # This forces the end-of-frame logic to always happen at once, with no interruption from other tasks:
     #    kill_task, image_submitter, and image_acknowledger.
@@ -64,7 +65,8 @@ function RenderTask(mini_render_settings::RenderSettings, full_render_settings::
                           RayBuffer(convert(v2i, mini_render_settings.resolution)),
                           RayBuffer(convert(v2i, full_render_settings.resolution)),
                           world, viewport,
-                          false, false, ReentrantLock(),
+                          false, false, zero(Float32),
+                          ReentrantLock(),
                           full_render_delay_seconds)
 
     # Start running the render task, then return the data.
@@ -124,16 +126,23 @@ function run_render_task(controller::RenderTask)
 
         fill!(output, zero(vRGBf))
 
+        @atomic controller.render_progress = zero(Float32)
+        prog_from_tonemap = @f32(0.05) / settings.n_samples_per_pixel
+
         # Take multiple jittered samples to get Anti-Aliasing.
         # At the end, average the samples together.
         aa_rng = PRNG(controller.world.current_frame, controller.world.rng_seed)
+        progress_per_sample = (@f32(1) - prog_from_tonemap) / settings.n_samples_per_pixel
         for aa_idx::Int in 1:settings.n_samples_per_pixel
             aa_jitter = rand(aa_rng, v2f)
             render_pass(controller.world, controller.viewport,
                         buffers, collision_precomputation,
                         RayParams(atol=0.001),
                         settings.n_bounces,
-                        aa_jitter)
+                        aa_jitter,
+                        pass_progress_t -> @atomic(controller.render_progress =
+                            (progress_per_sample * (aa_idx - 1 + pass_progress_t))
+                        ))
             output .+= buffers.color_left
         end
         output ./= settings.n_samples_per_pixel
@@ -141,6 +150,8 @@ function run_render_task(controller::RenderTask)
         # Apply gamma-correction. In the future, maybe we can add other tonemapping.
         tonemap(c) = clamp(c ^ @f32(1 / 2.0), 0, 1)
         output .= tonemap.(output)
+        
+        @atomic controller.render_progress = @f32(1)
     end
 
     # Helper function that hashes together any data which should trigger a fresh render upon changing.
@@ -213,7 +224,7 @@ end
 Runs the game thread's logic:
 
 If the render thread has produced something, executes the given lambda with the image data passed in.
-You should consider the image data temporary; do not hold onto it.
+The image data is temporary; do not hold onto it.
 "
 function update_renderer_game_task(to_do, controller::RenderTask)
     if isready(controller.image_submitter)
